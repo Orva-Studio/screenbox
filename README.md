@@ -51,6 +51,6 @@ across restarts.
 Fade timings are constants at the top of `OverlayView` in `Sources/main.swift`:
 
 ```swift
-var holdDuration: TimeInterval = 0.25
-var fadeDuration: TimeInterval = 0.3
+var holdDuration: TimeInterval = 0.15
+var fadeDuration: TimeInterval = 0.2
 ```
