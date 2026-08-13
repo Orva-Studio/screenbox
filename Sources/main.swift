@@ -3,31 +3,12 @@ import Carbon.HIToolbox
 
 // MARK: - Overlay view
 
-/// Transparent view that captures drag gestures and strokes rectangles.
+/// Transparent view that captures gestures and renders every mark.
 final class OverlayView: NSView {
-    private struct Shape {
-        var rect: NSRect
-        var color: NSColor
-        var lineWidth: CGFloat
-        var cornerRadius: CGFloat
-        /// When the box was finished. `nil` means it never fades.
-        var finishedAt: Date?
-
-        /// 1 while held, easing to 0 across the fade, then gone.
-        func opacity(hold: TimeInterval, fade: TimeInterval) -> CGFloat {
-            guard let finishedAt else { return 1 }
-            let age = Date().timeIntervalSince(finishedAt)
-            if age <= hold { return 1 }
-            let t = (age - hold) / fade
-            if t >= 1 { return 0 }
-            return CGFloat(1 - t * t) // ease-out: lingers, then drops off
-        }
-    }
-
-    private var shapes: [Shape] = []
-    private var dragOrigin: NSPoint?
-    private var dragCurrent: NSPoint?
+    private var marks: [Mark] = []
+    private var inProgress: Mark?
     private var fadeTimer: Timer?
+    private var textField: NSTextField?
 
     private let prefs = Prefs.shared
 
@@ -38,57 +19,24 @@ final class OverlayView: NSView {
     // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
-        for shape in shapes {
-            stroke(shape, opacity: shape.opacity(hold: prefs.holdDuration, fade: prefs.fadeDuration))
+        for mark in marks {
+            mark.draw(opacity: mark.opacity(hold: prefs.holdDuration, fade: prefs.fadeDuration))
         }
-        if let origin = dragOrigin, let current = dragCurrent {
-            // The in-progress box always uses the current settings.
-            let preview = Shape(
-                rect: OverlayView.rect(from: origin, to: current),
-                color: prefs.color,
-                lineWidth: prefs.lineWidth,
-                cornerRadius: prefs.cornerRadius,
-                finishedAt: nil
-            )
-            stroke(preview, opacity: 1)
-        }
+        inProgress?.draw(opacity: 1)
     }
 
-    private func stroke(_ shape: Shape, opacity: CGFloat) {
-        guard shape.rect.width > 1, shape.rect.height > 1, opacity > 0 else { return }
-        let inset = shape.rect.insetBy(dx: shape.lineWidth / 2, dy: shape.lineWidth / 2)
-        // Keep the radius from exceeding what the box can actually accommodate.
-        let radius = min(shape.cornerRadius, min(inset.width, inset.height) / 2)
-
-        func path(_ width: CGFloat) -> NSBezierPath {
-            let p = radius > 0
-                ? NSBezierPath(roundedRect: inset, xRadius: radius, yRadius: radius)
-                : NSBezierPath(rect: inset)
-            p.lineWidth = width
-            p.lineJoinStyle = radius > 0 ? .round : .miter
-            return p
-        }
-
-        // Dark halo so the box stays visible on light and dark backgrounds alike.
-        NSColor.black.withAlphaComponent(0.35 * opacity).setStroke()
-        path(shape.lineWidth + 2).stroke()
-
-        shape.color.withAlphaComponent(opacity).setStroke()
-        path(shape.lineWidth).stroke()
-    }
-
-    /// Drives the fade animation and drops boxes once they're invisible.
+    /// Drives the fade animation and drops marks once they're invisible.
     private func startFadeTimerIfNeeded() {
         guard fadeTimer == nil else { return }
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             guard let self else { return }
-            let before = self.shapes.count
-            self.shapes.removeAll {
+            let before = self.marks.count
+            self.marks.removeAll {
                 $0.opacity(hold: self.prefs.holdDuration, fade: self.prefs.fadeDuration) <= 0
             }
 
-            let stillFading = self.shapes.contains { $0.finishedAt != nil }
-            if !stillFading && before == self.shapes.count {
+            let stillFading = self.marks.contains { $0.finishedAt != nil }
+            if !stillFading && before == self.marks.count {
                 self.fadeTimer?.invalidate()
                 self.fadeTimer = nil
             }
@@ -96,49 +44,131 @@ final class OverlayView: NSView {
         }
     }
 
-    private static func rect(from a: NSPoint, to b: NSPoint) -> NSRect {
-        NSRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
+    /// A mark carrying the settings active at the moment it's drawn.
+    private func newMark(at point: NSPoint) -> Mark {
+        Mark(
+            tool: prefs.tool,
+            color: prefs.color,
+            lineWidth: prefs.lineWidth,
+            cornerRadius: prefs.cornerRadius,
+            points: [point],
+            start: point,
+            end: point
+        )
     }
 
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
-        dragOrigin = convert(event.locationInWindow, from: nil)
-        dragCurrent = dragOrigin
+        let point = convert(event.locationInWindow, from: nil)
+        commitTextField()
+
+        switch prefs.tool {
+        case .eraser:
+            erase(at: point)
+        case .text:
+            beginTextEntry(at: point)
+        default:
+            inProgress = newMark(at: point)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        dragCurrent = convert(event.locationInWindow, from: nil)
+        guard inProgress != nil else { return }
+        let point = convert(event.locationInWindow, from: nil)
+
+        if prefs.tool == .freehand {
+            inProgress?.points.append(point)
+        }
+        inProgress?.end = point
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer {
-            dragOrigin = nil
-            dragCurrent = nil
-            needsDisplay = true
-        }
-        guard let origin = dragOrigin else { return }
-        let final = OverlayView.rect(from: origin, to: convert(event.locationInWindow, from: nil))
-        guard final.width > 4, final.height > 4 else { return }
+        defer { needsDisplay = true }
+        guard var mark = inProgress else { return }
+        inProgress = nil
 
-        shapes.append(Shape(
-            rect: final,
-            color: prefs.color,
-            lineWidth: prefs.lineWidth,
-            cornerRadius: prefs.cornerRadius,
-            finishedAt: prefs.autoFade ? Date() : nil
-        ))
+        // Discard accidental clicks that never became a real mark.
+        switch mark.tool {
+        case .freehand:
+            guard mark.points.count > 2 else { return }
+        case .arrow:
+            let dx = mark.end.x - mark.start.x, dy = mark.end.y - mark.start.y
+            guard (dx * dx + dy * dy).squareRoot() > 8 else { return }
+        default:
+            guard mark.rect.width > 4, mark.rect.height > 4 else { return }
+        }
+
+        mark.finishedAt = prefs.autoFade ? Date() : nil
+        marks.append(mark)
         if prefs.autoFade { startFadeTimerIfNeeded() }
     }
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+        addCursorRect(bounds, cursor: prefs.tool == .text ? .iBeam : .crosshair)
+    }
+
+    private func erase(at point: NSPoint) {
+        if let index = marks.lastIndex(where: { $0.hitBounds.contains(point) }) {
+            marks.remove(at: index)
+            needsDisplay = true
+        }
+    }
+
+    // MARK: Text entry
+
+    private func beginTextEntry(at point: NSPoint) {
+        let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 6, width: 320, height: 34))
+        field.font = .systemFont(ofSize: 14 + prefs.lineWidth * 4, weight: .semibold)
+        field.textColor = prefs.color
+        field.backgroundColor = NSColor.black.withAlphaComponent(0.55)
+        field.drawsBackground = true
+        field.isBordered = false
+        field.focusRingType = .none
+        field.placeholderString = "Type, then ↩"
+        field.target = self
+        field.action = #selector(commitTextField)
+
+        addSubview(field)
+        window?.makeFirstResponder(field)
+        textField = field
+    }
+
+    /// Turns the live text field into a mark. Safe to call when there isn't one.
+    @objc private func commitTextField() {
+        guard let field = textField else { return }
+        textField = nil
+
+        let value = field.stringValue
+        let origin = NSPoint(x: field.frame.minX, y: field.frame.minY + 6)
+        field.removeFromSuperview()
+        window?.makeFirstResponder(self)
+
+        guard !value.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        var mark = newMark(at: origin)
+        mark.tool = .text
+        mark.text = value
+        mark.finishedAt = prefs.autoFade ? Date() : nil
+        marks.append(mark)
+        if prefs.autoFade { startFadeTimerIfNeeded() }
+        needsDisplay = true
     }
 
     // MARK: Keyboard
 
     override func keyDown(with event: NSEvent) {
+        // While typing, the text field owns the keyboard.
+        if textField != nil {
+            if Int(event.keyCode) == kVK_Escape {
+                textField?.removeFromSuperview()
+                textField = nil
+                window?.makeFirstResponder(self)
+            }
+            return
+        }
+
         switch Int(event.keyCode) {
         case kVK_Escape:
             clear()
@@ -146,13 +176,21 @@ final class OverlayView: NSView {
 
         case kVK_Delete where event.modifierFlags.contains(.command),
              kVK_ANSI_Z where event.modifierFlags.contains(.command):
-            if !shapes.isEmpty { shapes.removeLast() }
+            if !marks.isEmpty { marks.removeLast() }
             needsDisplay = true
 
         case kVK_ANSI_1: prefs.colorIndex = 0
         case kVK_ANSI_2: prefs.colorIndex = 1
         case kVK_ANSI_3: prefs.colorIndex = 2
         case kVK_ANSI_4: prefs.colorIndex = 3
+        case kVK_ANSI_5: prefs.colorIndex = 4
+
+        case kVK_ANSI_P: prefs.tool = .freehand
+        case kVK_ANSI_A: prefs.tool = .arrow
+        case kVK_ANSI_R: prefs.tool = .rectangle
+        case kVK_ANSI_O: prefs.tool = .ellipse
+        case kVK_ANSI_T: prefs.tool = .text
+        case kVK_ANSI_E: prefs.tool = .eraser
 
         case kVK_ANSI_LeftBracket:  prefs.lineWidth -= 1
         case kVK_ANSI_RightBracket: prefs.lineWidth += 1
@@ -163,7 +201,6 @@ final class OverlayView: NSView {
             clear()
 
         case kVK_ANSI_F:
-            // Toggle fade mode. Boxes already on screen keep their behaviour.
             prefs.autoFade.toggle()
 
         default:
@@ -171,12 +208,19 @@ final class OverlayView: NSView {
         }
     }
 
+    /// Called when preferences change so the cursor tracks the active tool.
+    func settingsChanged() {
+        window?.invalidateCursorRects(for: self)
+        needsDisplay = true
+    }
+
     func clear() {
         fadeTimer?.invalidate()
         fadeTimer = nil
-        shapes.removeAll()
-        dragOrigin = nil
-        dragCurrent = nil
+        marks.removeAll()
+        inProgress = nil
+        textField?.removeFromSuperview()
+        textField = nil
         needsDisplay = true
     }
 }
@@ -194,6 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var window: OverlayWindow?
     private var overlay: OverlayView?
+    private var toolbar: ToolbarPanel?
     private var hotKeyRef: EventHotKeyRef?
     private var isDrawing = false
 
@@ -205,7 +250,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         prefs.onChange = { [weak self] in
             self?.syncMenuState()
-            self?.overlay?.needsDisplay = true
+            self?.toolbar?.syncSelection()
+            self?.overlay?.settingsChanged()
         }
     }
 
@@ -217,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        let draw = NSMenuItem(title: "Draw Box  (⌃⌥⌘B)", action: #selector(toggleDrawing), keyEquivalent: "")
+        let draw = NSMenuItem(title: "Draw  (⌃⌥⌘B)", action: #selector(toggleDrawing), keyEquivalent: "")
         draw.target = self
         menu.addItem(draw)
         menu.addItem(.separator())
@@ -238,22 +284,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item(choice.0, #selector(pickSpeed), tag: index)
         }))
 
-        let fade = NSMenuItem(title: "Boxes Fade Out", action: #selector(toggleFade), keyEquivalent: "")
+        let fade = NSMenuItem(title: "Marks Fade Out", action: #selector(toggleFade), keyEquivalent: "")
         fade.target = self
         fade.identifier = .init("fade")
         menu.addItem(fade)
+
+        let toolbarItem = NSMenuItem(title: "Show Toolbar", action: #selector(toggleToolbar), keyEquivalent: "")
+        toolbarItem.target = self
+        toolbarItem.identifier = .init("toolbar")
+        menu.addItem(toolbarItem)
         menu.addItem(.separator())
 
         let help = NSMenuItem(title: "While drawing:", action: nil, keyEquivalent: "")
         help.isEnabled = false
         menu.addItem(help)
-        for line in ["  drag — draw a box",
-                     "  1–4 — colour",
+        for line in ["  P A R O T E — tool",
+                     "  1–5 — colour",
                      "  [ ] — thinner / thicker",
-                     "  − = — less / more corner radius",
-                     "  F — toggle fade on/off",
-                     "  ⌘Z — undo last box",
-                     "  C — clear all, stay drawing",
+                     "  − = — corner radius",
+                     "  F — toggle fade",
+                     "  ⌘Z — undo",
+                     "  C — clear all",
                      "  esc — clear and exit"] {
             let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
             item.isEnabled = false
@@ -272,13 +323,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.target = self
         item.tag = tag
         if let swatch {
-            let size = NSSize(width: 12, height: 12)
-            let image = NSImage(size: size, flipped: false) { rect in
+            item.image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
                 swatch.setFill()
                 NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
                 return true
             }
-            item.image = image
         }
         return item
     }
@@ -310,6 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         })
 
         menu.items.first { $0.identifier?.rawValue == "fade" }?.state = prefs.autoFade ? .on : .off
+        menu.items.first { $0.identifier?.rawValue == "toolbar" }?.state = prefs.showToolbar ? .on : .off
     }
 
     // MARK: Menu actions
@@ -323,6 +373,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let choice = Prefs.speedChoices[sender.tag]
         prefs.holdDuration = choice.1
         prefs.fadeDuration = choice.2
+    }
+
+    @objc private func toggleToolbar() {
+        prefs.showToolbar.toggle()
+        guard isDrawing else { return }
+        if prefs.showToolbar {
+            showToolbar()
+        } else {
+            hideToolbar()
+        }
     }
 
     // MARK: Global hotkey (Carbon — no Accessibility permission needed)
@@ -355,7 +415,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
             ?? NSScreen.main
-        guard let frame = screen?.frame else { return }
+        guard let screen, case let frame = screen.frame else { return }
 
         let window = OverlayWindow(
             contentRect: frame,
@@ -381,10 +441,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
+
+        if prefs.showToolbar { showToolbar(on: screen) }
         setIcon(drawing: true)
     }
 
+    private func showToolbar(on screen: NSScreen? = nil) {
+        let panel = toolbar ?? ToolbarPanel()
+        panel.onClose = { [weak self] in self?.endDrawing() }
+        panel.onClear = { [weak self] in self?.overlay?.clear() }
+        panel.position(on: screen ?? window?.screen ?? NSScreen.main!)
+        panel.orderFront(nil)
+        panel.syncSelection()
+        toolbar = panel
+    }
+
+    private func hideToolbar() {
+        toolbar?.rememberPosition()
+        toolbar?.orderOut(nil)
+        toolbar = nil
+    }
+
     private func endDrawing() {
+        hideToolbar()
         overlay?.clear()
         window?.orderOut(nil)
         window = nil

@@ -11,6 +11,7 @@ final class Prefs {
 
     private enum Key: String {
         case colorIndex, lineWidth, cornerRadius, autoFade, holdDuration, fadeDuration
+        case tool, toolbarX, toolbarY, showToolbar
     }
 
     /// Fired after any preference changes, so the UI and overlay can resync.
@@ -26,7 +27,36 @@ final class Prefs {
             Key.autoFade.rawValue: true,
             Key.holdDuration.rawValue: 0.15,
             Key.fadeDuration.rawValue: 0.2,
+            Key.tool.rawValue: Tool.rectangle.rawValue,
+            Key.showToolbar.rawValue: true,
         ])
+    }
+
+    // MARK: Tool
+
+    var tool: Tool {
+        get { Tool(rawValue: defaults.integer(forKey: Key.tool.rawValue)) ?? .rectangle }
+        set { write(Key.tool, newValue.rawValue) }
+    }
+
+    /// Whether the floating toolbar appears with the overlay.
+    var showToolbar: Bool {
+        get { defaults.bool(forKey: Key.showToolbar.rawValue) }
+        set { write(Key.showToolbar, newValue) }
+    }
+
+    /// Last toolbar position, so it reopens where you left it.
+    var toolbarOrigin: NSPoint? {
+        get {
+            guard defaults.object(forKey: Key.toolbarX.rawValue) != nil else { return nil }
+            return NSPoint(x: defaults.double(forKey: Key.toolbarX.rawValue),
+                           y: defaults.double(forKey: Key.toolbarY.rawValue))
+        }
+        set {
+            guard let newValue else { return }
+            defaults.set(newValue.x, forKey: Key.toolbarX.rawValue)
+            defaults.set(newValue.y, forKey: Key.toolbarY.rawValue)
+        }
     }
 
     // MARK: Palette
@@ -37,6 +67,7 @@ final class Prefs {
         ("Red", .systemRed),
         ("Green", .systemGreen),
         ("Yellow", .systemYellow),
+        ("Purple", .systemPurple),
     ]
 
     var colorIndex: Int {
