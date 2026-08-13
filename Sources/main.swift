@@ -34,8 +34,8 @@ final class OverlayView: NSView {
 
     /// When true, a box fades away on its own after you release the mouse.
     var autoFade = true
-    var holdDuration: TimeInterval = 0.35
-    var fadeDuration: TimeInterval = 0.4
+    var holdDuration: TimeInterval = 0.25
+    var fadeDuration: TimeInterval = 0.3
 
     override var acceptsFirstResponder: Bool { true }
 
