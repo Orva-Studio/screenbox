@@ -24,14 +24,24 @@ While drawing:
 
 | Key | Action |
 | --- | --- |
-| drag | draw a box |
-| `1`–`4` | blue / red / green / yellow |
+| drag | draw with the current tool |
+| `P` `A` `R` `O` `T` `H` | freehand / arrow / rectangle / ellipse / text / highlighter |
+| `1`–`5` | blue / red / green / yellow / purple |
 | `[` `]` | thinner / thicker stroke |
 | `−` `=` | less / more corner radius |
 | `F` | toggle fade-out on/off |
-| `⌘Z` | undo last box |
+| `⌘Z` | undo last mark |
 | `C` | clear all, stay in draw mode |
 | `esc` | clear and exit draw mode |
+
+The **highlighter** drags a wide translucent band in the current colour, so
+whatever it covers still reads through — yellow over a line of code or a
+paragraph works the way you'd expect. Its width follows the stroke thickness
+(`[` and `]`), scaled up.
+
+> `⌘Z` only applies to marks still on screen. With fade on (the default) a mark
+> is gone about a third of a second after you release the mouse, so there is
+> usually nothing left to undo. Press `F` to turn fade off first.
 
 ## Preferences
 

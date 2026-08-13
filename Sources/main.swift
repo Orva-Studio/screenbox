@@ -4,17 +4,25 @@ import Carbon.HIToolbox
 // MARK: - Overlay view
 
 /// Transparent view that captures gestures and renders every mark.
-final class OverlayView: NSView {
+final class OverlayView: NSView, NSTextFieldDelegate {
     private var marks: [Mark] = []
     private var inProgress: Mark?
     private var fadeTimer: Timer?
     private var textField: NSTextField?
+    /// Marks in the order they were drawn, for undo. Identified by id because
+    /// the fade timer removes them out from under the stack.
+    private var undoStack: [UUID] = []
+    /// Last seen `prefs.autoFade`, to spot the toggle in `settingsChanged`.
+    private var wasAutoFading = Prefs.shared.autoFade
 
     private let prefs = Prefs.shared
 
     var onDismiss: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
+
+    /// Claim the click that refocuses the overlay, instead of swallowing it.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     // MARK: Drawing
 
@@ -60,12 +68,18 @@ final class OverlayView: NSView {
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        // Clicking away and back (common with two displays) leaves us non-key.
+        if window?.isKeyWindow == false {
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+            window?.makeFirstResponder(self)
+        }
+
         let point = convert(event.locationInWindow, from: nil)
         commitTextField()
+        inProgress = nil // drop anything stranded by a mouseUp we never saw
 
         switch prefs.tool {
-        case .eraser:
-            erase(at: point)
         case .text:
             beginTextEntry(at: point)
         default:
@@ -77,7 +91,9 @@ final class OverlayView: NSView {
         guard inProgress != nil else { return }
         let point = convert(event.locationInWindow, from: nil)
 
-        if prefs.tool == .freehand {
+        // Follow the tool the stroke started with, so switching mid-drag
+        // doesn't truncate it.
+        if inProgress?.tool.isFreehandStyle == true {
             inProgress?.points.append(point)
         }
         inProgress?.end = point
@@ -91,7 +107,7 @@ final class OverlayView: NSView {
 
         // Discard accidental clicks that never became a real mark.
         switch mark.tool {
-        case .freehand:
+        case .freehand, .highlighter:
             guard mark.points.count > 2 else { return }
         case .arrow:
             let dx = mark.end.x - mark.start.x, dy = mark.end.y - mark.start.y
@@ -99,9 +115,13 @@ final class OverlayView: NSView {
         default:
             guard mark.rect.width > 4, mark.rect.height > 4 else { return }
         }
+        // ...and ones too small to actually stroke, which would otherwise sit
+        // invisible but still absorb an undo.
+        guard mark.isDrawable else { return }
 
         mark.finishedAt = prefs.autoFade ? Date() : nil
         marks.append(mark)
+        undoStack.append(mark.id)
         if prefs.autoFade { startFadeTimerIfNeeded() }
     }
 
@@ -109,26 +129,47 @@ final class OverlayView: NSView {
         addCursorRect(bounds, cursor: prefs.tool == .text ? .iBeam : .crosshair)
     }
 
-    private func erase(at point: NSPoint) {
-        if let index = marks.lastIndex(where: { $0.hitBounds.contains(point) }) {
+    // MARK: Undo
+
+    /// Removes the most recent mark. Entries naming marks that have since faded
+    /// away are skipped rather than counted as an undo.
+    private func undo() {
+        while let id = undoStack.popLast() {
+            guard let index = marks.firstIndex(where: { $0.id == id }) else { continue }
             marks.remove(at: index)
             needsDisplay = true
+            return
         }
     }
 
     // MARK: Text entry
 
+    /// Vertical padding between the editor's frame and its text baseline box,
+    /// so the committed mark lands where the editor showed it.
+    private func textInset(fontSize: CGFloat, height: CGFloat) -> CGFloat {
+        max((height - fontSize * 1.2) / 2, 0)
+    }
+
     private func beginTextEntry(at point: NSPoint) {
-        let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 6, width: 320, height: 34))
-        field.font = .systemFont(ofSize: 14 + prefs.lineWidth * 4, weight: .semibold)
+        // The editor has to grow with the stroke weight, or thick text clips.
+        let fontSize = 14 + prefs.lineWidth * 4
+        let size = NSSize(width: 320, height: ceil(fontSize * 1.2) + 16)
+
+        // Keep it fully on screen even when clicked near an edge.
+        let origin = NSPoint(
+            x: min(max(point.x, bounds.minX), max(bounds.maxX - size.width, bounds.minX)),
+            y: min(max(point.y - size.height / 2, bounds.minY), max(bounds.maxY - size.height, bounds.minY))
+        )
+
+        let field = NSTextField(frame: NSRect(origin: origin, size: size))
+        field.font = .systemFont(ofSize: fontSize, weight: .semibold)
         field.textColor = prefs.color
         field.backgroundColor = NSColor.black.withAlphaComponent(0.55)
         field.drawsBackground = true
         field.isBordered = false
         field.focusRingType = .none
         field.placeholderString = "Type, then ↩"
-        field.target = self
-        field.action = #selector(commitTextField)
+        field.delegate = self
 
         addSubview(field)
         window?.makeFirstResponder(field)
@@ -138,10 +179,13 @@ final class OverlayView: NSView {
     /// Turns the live text field into a mark. Safe to call when there isn't one.
     @objc private func commitTextField() {
         guard let field = textField else { return }
-        textField = nil
+        textField = nil // set first: tearing the field down re-enters here
 
         let value = field.stringValue
-        let origin = NSPoint(x: field.frame.minX, y: field.frame.minY + 6)
+        let fontSize = field.font?.pointSize ?? prefs.lineWidth * 4 + 14
+        let origin = NSPoint(x: field.frame.minX + 2,
+                             y: field.frame.minY + textInset(fontSize: fontSize, height: field.frame.height))
+        field.delegate = nil
         field.removeFromSuperview()
         window?.makeFirstResponder(self)
 
@@ -152,32 +196,68 @@ final class OverlayView: NSView {
         mark.text = value
         mark.finishedAt = prefs.autoFade ? Date() : nil
         marks.append(mark)
+        undoStack.append(mark.id)
         if prefs.autoFade { startFadeTimerIfNeeded() }
         needsDisplay = true
+    }
+
+    /// Throws away the live field without committing it.
+    private func discardTextField() {
+        guard let field = textField else { return }
+        textField = nil
+        field.delegate = nil
+        field.removeFromSuperview()
+        window?.makeFirstResponder(self)
+        needsDisplay = true
+    }
+
+    // Return commits and Escape discards. Handling both here rather than via
+    // target/action means the field can never be left behind holding the
+    // keyboard hostage.
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {
+        switch selector {
+        case #selector(NSResponder.insertNewline(_:)):
+            commitTextField()
+            return true
+        case #selector(NSResponder.cancelOperation(_:)):
+            discardTextField()
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Tabbing or clicking away commits rather than stranding the field.
+    func controlTextDidEndEditing(_ obj: Notification) {
+        commitTextField()
     }
 
     // MARK: Keyboard
 
     override func keyDown(with event: NSEvent) {
-        // While typing, the text field owns the keyboard.
+        // While typing, the field editor owns the keyboard and we never get
+        // here. If a field is around but no longer focused it's stranded —
+        // commit it and handle the key normally rather than going deaf.
         if textField != nil {
-            if Int(event.keyCode) == kVK_Escape {
-                textField?.removeFromSuperview()
-                textField = nil
-                window?.makeFirstResponder(self)
-            }
+            guard window?.firstResponder === self else { return }
+            commitTextField()
+        }
+
+        let chord = event.modifierFlags.intersection([.command, .control, .option])
+
+        if chord == .command, Int(event.keyCode) == kVK_ANSI_Z || Int(event.keyCode) == kVK_Delete {
+            undo()
             return
         }
+
+        // Single-key shortcuts must not fire on chords, or ⌘C would wipe the
+        // screen and ⌘T would switch tools.
+        guard chord.isEmpty else { return super.keyDown(with: event) }
 
         switch Int(event.keyCode) {
         case kVK_Escape:
             clear()
             onDismiss?()
-
-        case kVK_Delete where event.modifierFlags.contains(.command),
-             kVK_ANSI_Z where event.modifierFlags.contains(.command):
-            if !marks.isEmpty { marks.removeLast() }
-            needsDisplay = true
 
         case kVK_ANSI_1: prefs.colorIndex = 0
         case kVK_ANSI_2: prefs.colorIndex = 1
@@ -190,7 +270,7 @@ final class OverlayView: NSView {
         case kVK_ANSI_R: prefs.tool = .rectangle
         case kVK_ANSI_O: prefs.tool = .ellipse
         case kVK_ANSI_T: prefs.tool = .text
-        case kVK_ANSI_E: prefs.tool = .eraser
+        case kVK_ANSI_H: prefs.tool = .highlighter
 
         case kVK_ANSI_LeftBracket:  prefs.lineWidth -= 1
         case kVK_ANSI_RightBracket: prefs.lineWidth += 1
@@ -208,10 +288,33 @@ final class OverlayView: NSView {
         }
     }
 
-    /// Called when preferences change so the cursor tracks the active tool.
+    /// Called when preferences change so the overlay tracks the active tool.
     func settingsChanged() {
+        // Switching away from Text while typing would leave the editor live
+        // under a toolbar that says otherwise.
+        if prefs.tool != .text { commitTextField() }
+
+        if prefs.autoFade != wasAutoFading {
+            wasAutoFading = prefs.autoFade
+            applyAutoFade()
+        }
+
         window?.invalidateCursorRects(for: self)
         needsDisplay = true
+    }
+
+    /// Marks already on screen join or leave the fade when it's toggled —
+    /// otherwise turning fade on strands them permanently.
+    private func applyAutoFade() {
+        let finishedAt = prefs.autoFade ? Date() : nil
+        for index in marks.indices { marks[index].finishedAt = finishedAt }
+
+        if prefs.autoFade {
+            startFadeTimerIfNeeded()
+        } else {
+            fadeTimer?.invalidate()
+            fadeTimer = nil
+        }
     }
 
     func clear() {
@@ -219,6 +322,8 @@ final class OverlayView: NSView {
         fadeTimer = nil
         marks.removeAll()
         inProgress = nil
+        undoStack.removeAll()
+        textField?.delegate = nil
         textField?.removeFromSuperview()
         textField = nil
         needsDisplay = true
@@ -252,6 +357,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.syncMenuState()
             self?.toolbar?.syncSelection()
             self?.overlay?.settingsChanged()
+        }
+
+        // Debug affordance: `ScreenBox --draw` opens draw mode immediately.
+        if CommandLine.arguments.contains("--draw") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.toggleDrawing()
+            }
         }
     }
 
@@ -298,7 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let help = NSMenuItem(title: "While drawing:", action: nil, keyEquivalent: "")
         help.isEnabled = false
         menu.addItem(help)
-        for line in ["  P A R O T E — tool",
+        for line in ["  P A R O T H — tool",
                      "  1–5 — colour",
                      "  [ ] — thinner / thicker",
                      "  − = — corner radius",
