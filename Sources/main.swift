@@ -8,6 +8,8 @@ final class OverlayView: NSView {
     private struct Shape {
         var rect: NSRect
         var color: NSColor
+        var lineWidth: CGFloat
+        var cornerRadius: CGFloat
         /// When the box was finished. `nil` means it never fades.
         var finishedAt: Date?
 
@@ -27,15 +29,9 @@ final class OverlayView: NSView {
     private var dragCurrent: NSPoint?
     private var fadeTimer: Timer?
 
-    var color: NSColor = .systemBlue
-    var lineWidth: CGFloat = 4
-    var onDismiss: (() -> Void)?
-    var onFadeModeChanged: ((Bool) -> Void)?
+    private let prefs = Prefs.shared
 
-    /// When true, a box fades away on its own after you release the mouse.
-    var autoFade = true
-    var holdDuration: TimeInterval = 0.15
-    var fadeDuration: TimeInterval = 0.2
+    var onDismiss: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -43,28 +39,42 @@ final class OverlayView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         for shape in shapes {
-            stroke(shape.rect, shape.color, opacity: shape.opacity(hold: holdDuration, fade: fadeDuration))
+            stroke(shape, opacity: shape.opacity(hold: prefs.holdDuration, fade: prefs.fadeDuration))
         }
         if let origin = dragOrigin, let current = dragCurrent {
-            stroke(OverlayView.rect(from: origin, to: current), color, opacity: 1)
+            // The in-progress box always uses the current settings.
+            let preview = Shape(
+                rect: OverlayView.rect(from: origin, to: current),
+                color: prefs.color,
+                lineWidth: prefs.lineWidth,
+                cornerRadius: prefs.cornerRadius,
+                finishedAt: nil
+            )
+            stroke(preview, opacity: 1)
         }
     }
 
-    private func stroke(_ rect: NSRect, _ color: NSColor, opacity: CGFloat) {
-        guard rect.width > 1, rect.height > 1, opacity > 0 else { return }
-        let inset = rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+    private func stroke(_ shape: Shape, opacity: CGFloat) {
+        guard shape.rect.width > 1, shape.rect.height > 1, opacity > 0 else { return }
+        let inset = shape.rect.insetBy(dx: shape.lineWidth / 2, dy: shape.lineWidth / 2)
+        // Keep the radius from exceeding what the box can actually accommodate.
+        let radius = min(shape.cornerRadius, min(inset.width, inset.height) / 2)
+
+        func path(_ width: CGFloat) -> NSBezierPath {
+            let p = radius > 0
+                ? NSBezierPath(roundedRect: inset, xRadius: radius, yRadius: radius)
+                : NSBezierPath(rect: inset)
+            p.lineWidth = width
+            p.lineJoinStyle = radius > 0 ? .round : .miter
+            return p
+        }
 
         // Dark halo so the box stays visible on light and dark backgrounds alike.
-        let halo = NSBezierPath(rect: inset)
-        halo.lineWidth = lineWidth + 2
         NSColor.black.withAlphaComponent(0.35 * opacity).setStroke()
-        halo.stroke()
+        path(shape.lineWidth + 2).stroke()
 
-        let path = NSBezierPath(rect: inset)
-        path.lineWidth = lineWidth
-        path.lineJoinStyle = .miter
-        color.withAlphaComponent(opacity).setStroke()
-        path.stroke()
+        shape.color.withAlphaComponent(opacity).setStroke()
+        path(shape.lineWidth).stroke()
     }
 
     /// Drives the fade animation and drops boxes once they're invisible.
@@ -73,7 +83,9 @@ final class OverlayView: NSView {
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             let before = self.shapes.count
-            self.shapes.removeAll { $0.opacity(hold: self.holdDuration, fade: self.fadeDuration) <= 0 }
+            self.shapes.removeAll {
+                $0.opacity(hold: self.prefs.holdDuration, fade: self.prefs.fadeDuration) <= 0
+            }
 
             let stillFading = self.shapes.contains { $0.finishedAt != nil }
             if !stillFading && before == self.shapes.count {
@@ -109,8 +121,15 @@ final class OverlayView: NSView {
         guard let origin = dragOrigin else { return }
         let final = OverlayView.rect(from: origin, to: convert(event.locationInWindow, from: nil))
         guard final.width > 4, final.height > 4 else { return }
-        shapes.append(Shape(rect: final, color: color, finishedAt: autoFade ? Date() : nil))
-        if autoFade { startFadeTimerIfNeeded() }
+
+        shapes.append(Shape(
+            rect: final,
+            color: prefs.color,
+            lineWidth: prefs.lineWidth,
+            cornerRadius: prefs.cornerRadius,
+            finishedAt: prefs.autoFade ? Date() : nil
+        ))
+        if prefs.autoFade { startFadeTimerIfNeeded() }
     }
 
     override func resetCursorRects() {
@@ -124,21 +143,29 @@ final class OverlayView: NSView {
         case kVK_Escape:
             clear()
             onDismiss?()
+
         case kVK_Delete where event.modifierFlags.contains(.command),
              kVK_ANSI_Z where event.modifierFlags.contains(.command):
             if !shapes.isEmpty { shapes.removeLast() }
             needsDisplay = true
-        case kVK_ANSI_1: color = .systemBlue
-        case kVK_ANSI_2: color = .systemRed
-        case kVK_ANSI_3: color = .systemGreen
-        case kVK_ANSI_4: color = .systemYellow
+
+        case kVK_ANSI_1: prefs.colorIndex = 0
+        case kVK_ANSI_2: prefs.colorIndex = 1
+        case kVK_ANSI_3: prefs.colorIndex = 2
+        case kVK_ANSI_4: prefs.colorIndex = 3
+
+        case kVK_ANSI_LeftBracket:  prefs.lineWidth -= 1
+        case kVK_ANSI_RightBracket: prefs.lineWidth += 1
+        case kVK_ANSI_Minus:        prefs.cornerRadius -= 4
+        case kVK_ANSI_Equal:        prefs.cornerRadius += 4
+
         case kVK_ANSI_C:
             clear()
-            needsDisplay = true
+
         case kVK_ANSI_F:
-            // Toggle fade mode. Boxes already on screen keep their current behaviour.
-            autoFade.toggle()
-            onFadeModeChanged?(autoFade)
+            // Toggle fade mode. Boxes already on screen keep their behaviour.
+            prefs.autoFade.toggle()
+
         default:
             super.keyDown(with: event)
         }
@@ -169,46 +196,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlay: OverlayView?
     private var hotKeyRef: EventHotKeyRef?
     private var isDrawing = false
-    private var fadeItem: NSMenuItem!
 
-    /// Persisted so the mode survives a restart.
-    private var autoFade: Bool {
-        get {
-            UserDefaults.standard.object(forKey: "autoFade") as? Bool ?? true
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "autoFade")
-            fadeItem.state = newValue ? .on : .off
-        }
-    }
+    private let prefs = Prefs.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotKey()
+
+        prefs.onChange = { [weak self] in
+            self?.syncMenuState()
+            self?.overlay?.needsDisplay = true
+        }
     }
 
     // MARK: Menu bar
 
     private func setUpStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "rectangle.dashed",
-            accessibilityDescription: "ScreenBox"
-        )
+        setIcon(drawing: false)
 
         let menu = NSMenu()
-        menu.addItem(withTitle: "Draw Box  (⌃⌥⌘B)", action: #selector(toggleDrawing), keyEquivalent: "")
 
-        fadeItem = NSMenuItem(title: "Boxes Fade Out", action: #selector(toggleFade), keyEquivalent: "")
-        fadeItem.target = self
-        menu.addItem(fadeItem)
+        let draw = NSMenuItem(title: "Draw Box  (⌃⌥⌘B)", action: #selector(toggleDrawing), keyEquivalent: "")
+        draw.target = self
+        menu.addItem(draw)
+        menu.addItem(.separator())
+
+        menu.addItem(submenu(title: "Colour", items: Prefs.palette.enumerated().map { index, entry in
+            item(entry.name, #selector(pickColor), tag: index, swatch: entry.color)
+        }))
+
+        menu.addItem(submenu(title: "Thickness", items: Prefs.lineWidthChoices.enumerated().map { index, width in
+            item("\(Int(width)) pt", #selector(pickLineWidth), tag: index)
+        }))
+
+        menu.addItem(submenu(title: "Corner Radius", items: Prefs.cornerRadiusChoices.enumerated().map { index, radius in
+            item(radius == 0 ? "Square" : "\(Int(radius)) pt", #selector(pickCornerRadius), tag: index)
+        }))
+
+        menu.addItem(submenu(title: "Fade Speed", items: Prefs.speedChoices.enumerated().map { index, choice in
+            item(choice.0, #selector(pickSpeed), tag: index)
+        }))
+
+        let fade = NSMenuItem(title: "Boxes Fade Out", action: #selector(toggleFade), keyEquivalent: "")
+        fade.target = self
+        fade.identifier = .init("fade")
+        menu.addItem(fade)
         menu.addItem(.separator())
 
         let help = NSMenuItem(title: "While drawing:", action: nil, keyEquivalent: "")
         help.isEnabled = false
         menu.addItem(help)
         for line in ["  drag — draw a box",
-                     "  1–4 — blue / red / green / yellow",
+                     "  1–4 — colour",
+                     "  [ ] — thinner / thicker",
+                     "  − = — less / more corner radius",
                      "  F — toggle fade on/off",
                      "  ⌘Z — undo last box",
                      "  C — clear all, stay drawing",
@@ -221,16 +263,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit ScreenBox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
-        for item in menu.items where item.action == #selector(toggleDrawing) {
-            item.target = self
-        }
         statusItem.menu = menu
-        fadeItem.state = autoFade ? .on : .off
+        syncMenuState()
     }
 
-    @objc private func toggleFade() {
-        autoFade.toggle()
-        overlay?.autoFade = autoFade
+    private func item(_ title: String, _ action: Selector, tag: Int, swatch: NSColor? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.tag = tag
+        if let swatch {
+            let size = NSSize(width: 12, height: 12)
+            let image = NSImage(size: size, flipped: false) { rect in
+                swatch.setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
+                return true
+            }
+            item.image = image
+        }
+        return item
+    }
+
+    private func submenu(title: String, items: [NSMenuItem]) -> NSMenuItem {
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        items.forEach { sub.addItem($0) }
+        parent.submenu = sub
+        return parent
+    }
+
+    /// Ticks the menu item matching each current preference.
+    private func syncMenuState() {
+        guard let menu = statusItem?.menu else { return }
+
+        func check(_ title: String, matching index: Int?) {
+            guard let sub = menu.items.first(where: { $0.title == title })?.submenu else { return }
+            for (i, item) in sub.items.enumerated() {
+                item.state = (i == index) ? .on : .off
+            }
+        }
+
+        check("Colour", matching: prefs.colorIndex)
+        check("Thickness", matching: Prefs.lineWidthChoices.firstIndex(of: prefs.lineWidth))
+        check("Corner Radius", matching: Prefs.cornerRadiusChoices.firstIndex(of: prefs.cornerRadius))
+        check("Fade Speed", matching: Prefs.speedChoices.firstIndex {
+            $0.1 == prefs.holdDuration && $0.2 == prefs.fadeDuration
+        })
+
+        menu.items.first { $0.identifier?.rawValue == "fade" }?.state = prefs.autoFade ? .on : .off
+    }
+
+    // MARK: Menu actions
+
+    @objc private func pickColor(_ sender: NSMenuItem) { prefs.colorIndex = sender.tag }
+    @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
+    @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
+    @objc private func toggleFade() { prefs.autoFade.toggle() }
+
+    @objc private func pickSpeed(_ sender: NSMenuItem) {
+        let choice = Prefs.speedChoices[sender.tag]
+        prefs.holdDuration = choice.1
+        prefs.fadeDuration = choice.2
     }
 
     // MARK: Global hotkey (Carbon — no Accessibility permission needed)
@@ -279,9 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.ignoresMouseEvents = false
 
         let view = OverlayView(frame: NSRect(origin: .zero, size: frame.size))
-        view.autoFade = autoFade
         view.onDismiss = { [weak self] in self?.endDrawing() }
-        view.onFadeModeChanged = { [weak self] enabled in self?.autoFade = enabled }
         window.contentView = view
 
         self.window = window
@@ -291,10 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "rectangle.dashed.badge.record",
-            accessibilityDescription: "ScreenBox — drawing"
-        )
+        setIcon(drawing: true)
     }
 
     private func endDrawing() {
@@ -303,9 +390,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window = nil
         overlay = nil
         isDrawing = false
+        setIcon(drawing: false)
+    }
+
+    private func setIcon(drawing: Bool) {
         statusItem.button?.image = NSImage(
-            systemSymbolName: "rectangle.dashed",
-            accessibilityDescription: "ScreenBox"
+            systemSymbolName: drawing ? "rectangle.dashed.badge.record" : "rectangle.dashed",
+            accessibilityDescription: drawing ? "ScreenBox — drawing" : "ScreenBox"
         )
     }
 }

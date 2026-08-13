@@ -26,14 +26,34 @@ While drawing:
 | --- | --- |
 | drag | draw a box |
 | `1`–`4` | blue / red / green / yellow |
+| `[` `]` | thinner / thicker stroke |
+| `−` `=` | less / more corner radius |
 | `F` | toggle fade-out on/off |
 | `⌘Z` | undo last box |
 | `C` | clear all, stay in draw mode |
 | `esc` | clear and exit draw mode |
 
-With fade on (the default) a box holds briefly then eases out. With it off, boxes
-persist until you clear them. The setting lives in the menu bar and persists
-across restarts.
+## Preferences
+
+Colour, thickness, corner radius, fade speed, and fade on/off all live in the
+menu bar and are **saved automatically** — change them however you like and
+they'll be the same next launch. Keyboard changes made mid-draw persist too.
+
+Defaults: yellow, 4pt, square corners, fast fade.
+
+Preferences are stored in `UserDefaults` under `local.screenbox`. To reset
+everything:
+
+```bash
+defaults delete local.screenbox
+```
+
+### Adding a preference
+
+`Sources/Prefs.swift` is the single source of truth. Add a `Key` case, a
+computed property, and a default in `register(defaults:)`. Because every write
+fires `onChange`, the menu re-ticks and the live overlay redraws with no extra
+wiring.
 
 ## Notes
 
@@ -46,11 +66,13 @@ across restarts.
 - Uses a Carbon hotkey, so no Accessibility permission is required.
 - Draws over normal windows but not over fullscreen apps.
 
-## Tuning
+## Fade speed presets
 
-Fade timings are constants at the top of `OverlayView` in `Sources/main.swift`:
+| Preset | Hold | Fade |
+| --- | --- | --- |
+| Instant | 0s | 0.15s |
+| Fast (default) | 0.15s | 0.2s |
+| Medium | 0.35s | 0.4s |
+| Slow | 1.0s | 0.8s |
 
-```swift
-var holdDuration: TimeInterval = 0.15
-var fadeDuration: TimeInterval = 0.2
-```
+Edit `Prefs.speedChoices` in `Sources/Prefs.swift` to change or add presets.
