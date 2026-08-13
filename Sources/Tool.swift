@@ -2,45 +2,51 @@ import Cocoa
 
 /// The drawing tools offered in the toolbar.
 enum Tool: Int, CaseIterable {
-    case freehand, arrow, rectangle, ellipse, text, eraser
+    case freehand, arrow, rectangle, ellipse, text, highlighter
 
     var symbolName: String {
         switch self {
-        case .freehand:  return "scribble"
-        case .arrow:     return "arrow.down.left"
-        case .rectangle: return "rectangle"
-        case .ellipse:   return "circle"
-        case .text:      return "textformat"
-        case .eraser:    return "eraser"
+        case .freehand:    return "scribble"
+        case .arrow:       return "arrow.down.left"
+        case .rectangle:   return "rectangle"
+        case .ellipse:     return "circle"
+        case .text:        return "textformat"
+        case .highlighter: return "highlighter"
         }
     }
 
     var label: String {
         switch self {
-        case .freehand:  return "Freehand"
-        case .arrow:     return "Arrow"
-        case .rectangle: return "Rectangle"
-        case .ellipse:   return "Ellipse"
-        case .text:      return "Text"
-        case .eraser:    return "Eraser"
+        case .freehand:    return "Freehand"
+        case .arrow:       return "Arrow"
+        case .rectangle:   return "Rectangle"
+        case .ellipse:     return "Ellipse"
+        case .text:        return "Text"
+        case .highlighter: return "Highlighter"
         }
     }
 
     /// Key that selects this tool while drawing.
     var shortcut: String {
         switch self {
-        case .freehand:  return "P"
-        case .arrow:     return "A"
-        case .rectangle: return "R"
-        case .ellipse:   return "O"
-        case .text:      return "T"
-        case .eraser:    return "E"
+        case .freehand:    return "P"
+        case .arrow:       return "A"
+        case .rectangle:   return "R"
+        case .ellipse:     return "O"
+        case .text:        return "T"
+        case .highlighter: return "H"
         }
     }
+
+    /// Tools drawn by sampling the cursor along a drag.
+    var isFreehandStyle: Bool { self == .freehand || self == .highlighter }
 }
 
 /// One finished (or in-progress) mark on screen.
 struct Mark {
+    /// Stable identity, so undo can name a mark that may have moved or faded.
+    let id = UUID()
+
     var tool: Tool
     var color: NSColor
     var lineWidth: CGFloat
@@ -72,24 +78,27 @@ struct Mark {
         return CGFloat(1 - t * t) // ease-out: lingers, then drops off
     }
 
-    /// Generous bounds used for eraser hit-testing.
-    var hitBounds: NSRect {
-        let padding = max(lineWidth * 2, 8)
-        switch tool {
-        case .freehand:
-            guard let first = points.first else { return .zero }
-            var box = NSRect(origin: first, size: .zero)
-            for point in points { box = NSUnionRect(box, NSRect(origin: point, size: .zero)) }
-            return box.insetBy(dx: -padding, dy: -padding)
-        case .text:
-            return NSRect(origin: start, size: NSSize(width: 400, height: 60))
-                .insetBy(dx: -padding, dy: -padding)
-        default:
-            return rect.insetBy(dx: -padding, dy: -padding)
-        }
-    }
+    /// Highlighter strokes are much fatter than a pen line.
+    var highlighterWidth: CGFloat { lineWidth * 4 + 8 }
 
     var fontSize: CGFloat { 14 + lineWidth * 4 }
+
+    var textFont: NSFont { .systemFont(ofSize: fontSize, weight: .semibold) }
+
+    /// Measured size of the drawn string, so hit-testing matches what's on screen.
+    var textSize: NSSize {
+        let measured = (text as NSString).size(withAttributes: [.font: textFont])
+        return NSSize(width: max(measured.width, fontSize), height: max(measured.height, fontSize))
+    }
+
+    /// True when the mark would actually render something. Marks that fail this
+    /// are dropped rather than stored invisibly where undo can still find them.
+    var isDrawable: Bool {
+        switch tool {
+        case .text: return !text.trimmingCharacters(in: .whitespaces).isEmpty
+        default:    return bezierPath() != nil
+        }
+    }
 
     /// Strokes the mark into the current graphics context.
     func draw(opacity: CGFloat) {
@@ -104,11 +113,20 @@ struct Mark {
             shadow.shadowBlurRadius = 3
             shadow.shadowOffset = NSSize(width: 0, height: -1)
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+                .font: textFont,
                 .foregroundColor: stroke,
                 .shadow: shadow,
             ]
             text.draw(at: start, withAttributes: attributes)
+
+        case .highlighter:
+            guard let path = bezierPath() else { return }
+            // One translucent pass, no halo: the point is to let whatever is
+            // underneath read through, the way a real highlighter does.
+            path.lineCapStyle = .square
+            path.lineWidth = highlighterWidth
+            color.withAlphaComponent(0.32 * opacity).setStroke()
+            path.stroke()
 
         default:
             guard let path = bezierPath() else { return }
@@ -130,7 +148,7 @@ struct Mark {
         path.lineJoinStyle = .round
 
         switch tool {
-        case .freehand:
+        case .freehand, .highlighter:
             guard points.count > 1 else { return nil }
             path.move(to: points[0])
             for point in points.dropFirst() { path.line(to: point) }
@@ -167,7 +185,7 @@ struct Mark {
             guard box.width > 1, box.height > 1 else { return nil }
             path.appendOval(in: box)
 
-        case .text, .eraser:
+        case .text:
             return nil
         }
 

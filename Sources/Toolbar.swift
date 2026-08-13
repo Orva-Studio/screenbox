@@ -172,7 +172,7 @@ final class ToolbarPanel: NSPanel {
 
         place(Divider(frame: NSRect(x: 0, y: 0, width: 9, height: height)), width: 9, trailing: 2)
 
-        for tool in Tool.allCases where tool != .eraser {
+        for tool in Tool.allCases {
             let button = ToolButton(symbolName: tool.symbolName, tooltip: "\(tool.label)  (\(tool.shortcut))")
             button.onClick = { [weak self] in self?.prefs.tool = tool }
             toolButtons.append((tool, button))
@@ -180,11 +180,6 @@ final class ToolbarPanel: NSPanel {
         }
 
         place(Divider(frame: NSRect(x: 0, y: 0, width: 9, height: height)), width: 9, trailing: 2)
-
-        let eraser = ToolButton(symbolName: Tool.eraser.symbolName, tooltip: "Eraser  (E)")
-        eraser.onClick = { [weak self] in self?.prefs.tool = .eraser }
-        toolButtons.append((.eraser, eraser))
-        place(eraser, width: 30)
 
         let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
         clear.onClick = { [weak self] in self?.onClear?() }
@@ -218,13 +213,21 @@ final class ToolbarPanel: NSPanel {
     // MARK: Positioning
 
     /// Restores the saved position, or centres near the top of `screen`.
+    ///
+    /// The saved spot is only reused if it lands on the screen we're drawing on —
+    /// otherwise the bar would strand itself on another display, out of reach of
+    /// the overlay it belongs to.
     func position(on screen: NSScreen) {
         let size = frame.size
-        if let saved = prefs.toolbarOrigin,
-           NSScreen.screens.contains(where: { $0.frame.intersects(NSRect(origin: saved, size: size)) }) {
-            setFrameOrigin(saved)
+        let visible = screen.visibleFrame
+
+        if let saved = prefs.toolbarOrigin, visible.intersects(NSRect(origin: saved, size: size)) {
+            // Clamp rather than discard, so a bar nudged past an edge comes back.
+            setFrameOrigin(NSPoint(
+                x: min(max(saved.x, visible.minX), max(visible.maxX - size.width, visible.minX)),
+                y: min(max(saved.y, visible.minY), max(visible.maxY - size.height, visible.minY))
+            ))
         } else {
-            let visible = screen.visibleFrame
             setFrameOrigin(NSPoint(x: visible.midX - size.width / 2,
                                    y: visible.maxY - size.height - 20))
         }
