@@ -11,7 +11,7 @@ mkdir -p "$APP/Contents/MacOS"
 swiftc -O \
   -framework Cocoa -framework Carbon \
   -o "$APP/Contents/MacOS/ScreenBox" \
-  Sources/Prefs.swift Sources/main.swift
+  Sources/Prefs.swift Sources/Tool.swift Sources/Toolbar.swift Sources/main.swift
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
