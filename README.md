@@ -113,6 +113,10 @@ sign with a Developer ID certificate, then `xcrun notarytool submit --wait` and
 - Uses a Carbon hotkey, so no Accessibility permission is required.
 - Draws over normal windows but not over fullscreen apps.
 
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
 ## Fade speed presets
 
 | Preset | Hold | Fade |
