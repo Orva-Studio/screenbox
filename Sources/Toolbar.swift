@@ -117,6 +117,9 @@ final class ToolbarPanel: NSPanel {
     private var toolButtons: [(Tool, ToolButton)] = []
     private var spotlightButton: ToolButton?
     private var passThroughButton: ToolButton?
+    /// Whether the last `build()` laid out the clear button, so `syncSelection`
+    /// can spot the auto-fade toggle and relay out.
+    private var showsClear = false
     private let prefs = Prefs.shared
 
     var onClose: (() -> Void)?
@@ -195,9 +198,15 @@ final class ToolbarPanel: NSPanel {
         passThroughButton = passThrough
         place(passThrough, width: 30)
 
-        let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
-        clear.onClick = { [weak self] in self?.onClear?() }
-        place(clear, width: 30)
+        // Only worth a slot when marks actually stick around. With auto-fade on
+        // — the default — the screen empties itself, so there is never anything
+        // to clear and the button is dead weight. `C` still works either way.
+        showsClear = !prefs.autoFade
+        if showsClear {
+            let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
+            clear.onClick = { [weak self] in self?.onClear?() }
+            place(clear, width: 30)
+        }
 
         let close = ToolButton(symbolName: "xmark.circle.fill", tooltip: "Close  (esc)")
         close.onClick = { [weak self] in self?.onClose?() }
@@ -216,6 +225,17 @@ final class ToolbarPanel: NSPanel {
 
     /// Reflects the current preferences in the button states.
     func syncSelection() {
+        // Toggling auto-fade adds or removes the clear button, which changes the
+        // bar's width — that needs a fresh layout, not just new button states.
+        if showsClear == prefs.autoFade {
+            dots.removeAll()
+            toolButtons.removeAll()
+            spotlightButton = nil
+            passThroughButton = nil
+            build() // ends in syncSelection() itself, with showsClear now correct
+            return
+        }
+
         for (index, dot) in dots.enumerated() {
             dot.isSelected = (index == prefs.colorIndex)
         }
