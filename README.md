@@ -92,9 +92,16 @@ It refuses unless you're on a clean `main`, fast-forwards, checks the tag is
 free, does a smoke build so a broken commit can't burn a tag, then tags and
 pushes.
 
-The push triggers `.github/workflows/release.yml`, which builds on `macos-latest`,
-zips the bundle with `ditto`, and publishes a GitHub release with the zip
-attached.
+The push triggers `.github/workflows/release.yml`, which builds a universal
+binary on `macos-latest`, packages it as both a drag-to-install `.dmg` and a
+`.zip`, and publishes a GitHub release with both attached.
+
+To build a disk image by hand:
+
+```bash
+./build.sh
+./scripts/make-dmg.sh          # -> build/ScreenBox-<version>.dmg
+```
 
 The app is only **ad-hoc signed**, so Gatekeeper quarantines it on download and
 the release notes tell people to right-click → Open (or run `xattr -dr
