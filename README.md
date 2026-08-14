@@ -4,6 +4,34 @@ A tiny macOS menu bar app for drawing highlight boxes on screen while recording 
 
 Press a hotkey, drag a box around whatever you're talking about, and it fades away on its own. No editing pass, no timeline annotations.
 
+## Install
+
+Grab **ScreenBox-x.y.z.dmg** from the
+[latest release](https://github.com/Orva-Studio/screenbox/releases/latest), open
+it, and drag ScreenBox to Applications. Requires macOS 13 or later; the build is
+universal, so it runs natively on both Apple silicon and Intel. (The `.zip` next
+to it is the same app, for scripted installs.)
+
+**First launch takes an extra step.** ScreenBox is only ad-hoc signed — there's
+no Apple Developer account behind it — so macOS quarantines it on download and
+refuses to open it. Either right-click the app and choose **Open**, then confirm
+(on Ventura and later you may need **System Settings → Privacy & Security →
+Open Anyway** instead), or clear the flag yourself:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ScreenBox.app
+```
+
+You only do this once. There's no installer, no background daemon, and no
+Accessibility permission to grant — the app is a menu bar icon and a global
+hotkey, nothing else.
+
+Then press **⌃⌥⌘B** to draw. To have it start with your Mac, add it to
+**System Settings → General → Login Items**.
+
+To uninstall, quit it from the menu bar and drag `/Applications/ScreenBox.app`
+to the trash; `defaults delete local.screenbox` clears its saved preferences.
+
 ## Build
 
 ```bash
@@ -13,8 +41,8 @@ open build/ScreenBox.app
 
 Requires the Swift toolchain (Xcode or Command Line Tools). No dependencies.
 
-To keep it around: drag `build/ScreenBox.app` to `/Applications` and add it to
-**System Settings → General → Login Items**.
+To keep a build you made yourself, drag `build/ScreenBox.app` to `/Applications`
+— a local build isn't quarantined, so it opens without the step above.
 
 ## Use
 
