@@ -428,6 +428,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let prefs = Prefs.shared
 
+    /// Marketing version and build, both stamped into Info.plist by `build.sh`
+    /// from the current git tag.
+    static var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(short) (\(build))"
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotKey()
@@ -518,6 +527,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
+
+        let version = NSMenuItem(title: "ScreenBox \(Self.versionString)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
         menu.addItem(withTitle: "Quit ScreenBox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem.menu = menu

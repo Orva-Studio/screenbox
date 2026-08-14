@@ -75,6 +75,30 @@ computed property, and a default in `register(defaults:)`. Because every write
 fires `onChange`, the menu re-ticks and the live overlay redraws with no extra
 wiring.
 
+## Releases
+
+The version is derived from git tags — nothing to bump by hand. `build.sh`
+stamps `CFBundleShortVersionString` from the latest tag (`v1.2.0` → `1.2.0`, or
+`1.2.0-dev` for commits after it) and `CFBundleVersion` from the commit count.
+The running version shows at the bottom of the menu.
+
+To cut a release:
+
+```bash
+git tag v1.2.0
+git push --tags
+```
+
+That triggers `.github/workflows/release.yml`, which builds on `macos-latest`,
+zips the bundle with `ditto`, and publishes a GitHub release with the zip
+attached.
+
+The app is only **ad-hoc signed**, so Gatekeeper quarantines it on download and
+the release notes tell people to right-click → Open (or run `xattr -dr
+com.apple.quarantine`). Fixing that properly needs an Apple Developer account:
+sign with a Developer ID certificate, then `xcrun notarytool submit --wait` and
+`xcrun stapler staple` in the workflow.
+
 ## Notes
 
 - The overlay window only exists while draw mode is active, so it never

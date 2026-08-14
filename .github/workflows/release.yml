@@ -1,0 +1,49 @@
+name: Release
+
+# Tagging is the release: `git tag v1.2.0 && git push --tags` builds the app and
+# publishes it. Also runnable by hand to rehearse a build without tagging.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # build.sh reads tags and the commit count
+
+      - name: Build
+        run: ./build.sh
+
+      # `ditto` rather than `zip`: it preserves the bundle's symlinks and
+      # resource forks, which a plain zip mangles.
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = tag ] || VERSION="dev-${GITHUB_SHA::7}"
+          ditto -c -k --keepParent build/ScreenBox.app "ScreenBox-$VERSION.zip"
+          echo "ASSET=ScreenBox-$VERSION.zip" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+
+      # The app is only ad-hoc signed, so Gatekeeper quarantines it on download.
+      # The release notes have to say how to get past that.
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ASSET" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file .github/install-notes.md \
+            --generate-notes
