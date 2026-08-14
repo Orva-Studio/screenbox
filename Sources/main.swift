@@ -8,6 +8,8 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     private var marks: [Mark] = []
     private var inProgress: Mark?
     private var fadeTimer: Timer?
+    private var spotlightTimer: Timer?
+    private var lastMouse = NSEvent.mouseLocation
     private var textField: NSTextField?
     /// Marks in the order they were drawn, for undo. Identified by id because
     /// the fade timer removes them out from under the stack.
@@ -21,16 +23,83 @@ final class OverlayView: NSView, NSTextFieldDelegate {
 
     override var acceptsFirstResponder: Bool { true }
 
+    // Both timers hold the view weakly, so nothing keeps us alive past the
+    // overlay being torn down — but they'd keep firing if we didn't stop them.
+    deinit {
+        fadeTimer?.invalidate()
+        spotlightTimer?.invalidate()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncSpotlightTimer()
+    }
+
     /// Claim the click that refocuses the overlay, instead of swallowing it.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     // MARK: Drawing
 
     override func draw(_ dirtyRect: NSRect) {
+        drawSpotlight()
         for mark in marks {
             mark.draw(opacity: mark.opacity(hold: prefs.holdDuration, fade: prefs.fadeDuration))
         }
         inProgress?.draw(opacity: 1)
+    }
+
+    // MARK: Spotlight
+
+    /// Dims the screen apart from a soft circle around the pointer. Drawn first,
+    /// so marks stay at full strength on top of the dimming.
+    private func drawSpotlight() {
+        guard prefs.spotlight else { return }
+
+        let dim = NSColor.black.withAlphaComponent(0.55)
+        let centre = spotlightCentre
+        let inner = prefs.spotlightRadius
+        let outer = inner * 1.25 // the width of the soft edge
+
+        // Everything beyond the falloff, in one flat fill.
+        let beyond = NSBezierPath(rect: bounds)
+        beyond.append(NSBezierPath(ovalIn: NSRect(x: centre.x - outer, y: centre.y - outer,
+                                                  width: outer * 2, height: outer * 2)))
+        beyond.windingRule = .evenOdd
+        dim.setFill()
+        beyond.fill()
+
+        // ...and the ramp from clear at the edge of the lit circle out to it.
+        NSGradient(colors: [.clear, dim])?
+            .draw(fromCenter: centre, radius: inner, toCenter: centre, radius: outer, options: [])
+    }
+
+    /// Pointer position in view coordinates.
+    ///
+    /// Read from the global mouse location rather than the window's, which isn't
+    /// meaningful until the freshly-opened overlay has seen an event of its own.
+    private var spotlightCentre: NSPoint {
+        guard let window else { return NSPoint(x: bounds.midX, y: bounds.midY) }
+        let global = NSEvent.mouseLocation
+        return convert(NSPoint(x: global.x - window.frame.minX,
+                               y: global.y - window.frame.minY), from: nil)
+    }
+
+    /// Polls the pointer while the spotlight is up. A tracking area would miss
+    /// every move made over the toolbar, which floats above the overlay.
+    private func syncSpotlightTimer() {
+        guard prefs.spotlight else {
+            spotlightTimer?.invalidate()
+            spotlightTimer = nil
+            return
+        }
+        guard spotlightTimer == nil else { return }
+        spotlightTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let mouse = NSEvent.mouseLocation
+            guard mouse != self.lastMouse else { return }
+            self.lastMouse = mouse
+            self.needsDisplay = true
+        }
     }
 
     /// Drives the fade animation and drops marks once they're invisible.
@@ -126,6 +195,9 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     }
 
     override func resetCursorRects() {
+        // With "keep normal cursor" on we claim no rect at all, so the pointer
+        // stays the plain arrow the overlay window would show anyway.
+        guard !prefs.keepNormalCursor else { return }
         addCursorRect(bounds, cursor: prefs.tool == .text ? .iBeam : .crosshair)
     }
 
@@ -272,8 +344,14 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case kVK_ANSI_T: prefs.tool = .text
         case kVK_ANSI_H: prefs.tool = .highlighter
 
-        case kVK_ANSI_LeftBracket:  prefs.lineWidth -= 1
-        case kVK_ANSI_RightBracket: prefs.lineWidth += 1
+        case kVK_ANSI_S: prefs.spotlight.toggle()
+
+        // While the spotlight is up, the brackets size it — that's the thing
+        // you're most likely reaching for.
+        case kVK_ANSI_LeftBracket:
+            if prefs.spotlight { prefs.spotlightRadius -= 20 } else { prefs.lineWidth -= 1 }
+        case kVK_ANSI_RightBracket:
+            if prefs.spotlight { prefs.spotlightRadius += 20 } else { prefs.lineWidth += 1 }
         case kVK_ANSI_Minus:        prefs.cornerRadius -= 4
         case kVK_ANSI_Equal:        prefs.cornerRadius += 4
 
@@ -299,6 +377,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             applyAutoFade()
         }
 
+        syncSpotlightTimer()
         window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
@@ -396,6 +475,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item(choice.0, #selector(pickSpeed), tag: index)
         }))
 
+        menu.addItem(submenu(title: "Spotlight Size", items: Prefs.spotlightRadiusChoices.enumerated().map { index, radius in
+            item("\(Int(radius)) pt", #selector(pickSpotlightRadius), tag: index)
+        }))
+
+        let spotlight = NSMenuItem(title: "Spotlight", action: #selector(toggleSpotlight), keyEquivalent: "")
+        spotlight.target = self
+        spotlight.identifier = .init("spotlight")
+        menu.addItem(spotlight)
+
+        let cursor = NSMenuItem(title: "Keep Normal Cursor", action: #selector(toggleCursor), keyEquivalent: "")
+        cursor.target = self
+        cursor.identifier = .init("cursor")
+        menu.addItem(cursor)
+
         let fade = NSMenuItem(title: "Marks Fade Out", action: #selector(toggleFade), keyEquivalent: "")
         fade.target = self
         fade.identifier = .init("fade")
@@ -412,7 +505,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(help)
         for line in ["  P A R O T H — tool",
                      "  1–5 — colour",
-                     "  [ ] — thinner / thicker",
+                     "  S — spotlight",
+                     "  [ ] — thinner / thicker (spotlight size)",
                      "  − = — corner radius",
                      "  F — toggle fade",
                      "  ⌘Z — undo",
@@ -469,9 +563,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         check("Fade Speed", matching: Prefs.speedChoices.firstIndex {
             $0.1 == prefs.holdDuration && $0.2 == prefs.fadeDuration
         })
+        check("Spotlight Size", matching: Prefs.spotlightRadiusChoices.firstIndex(of: prefs.spotlightRadius))
 
         menu.items.first { $0.identifier?.rawValue == "fade" }?.state = prefs.autoFade ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "toolbar" }?.state = prefs.showToolbar ? .on : .off
+        menu.items.first { $0.identifier?.rawValue == "spotlight" }?.state = prefs.spotlight ? .on : .off
+        menu.items.first { $0.identifier?.rawValue == "cursor" }?.state = prefs.keepNormalCursor ? .on : .off
     }
 
     // MARK: Menu actions
@@ -480,6 +577,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
     @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
     @objc private func toggleFade() { prefs.autoFade.toggle() }
+    @objc private func toggleSpotlight() { prefs.spotlight.toggle() }
+    @objc private func toggleCursor() { prefs.keepNormalCursor.toggle() }
+    @objc private func pickSpotlightRadius(_ sender: NSMenuItem) {
+        prefs.spotlightRadius = Prefs.spotlightRadiusChoices[sender.tag]
+    }
 
     @objc private func pickSpeed(_ sender: NSMenuItem) {
         let choice = Prefs.speedChoices[sender.tag]
@@ -541,6 +643,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.level = .screenSaver
         window.collectionBehavior = [.canJoinAllSpaces, .stationary]
         window.ignoresMouseEvents = false
+        window.acceptsMouseMovedEvents = true // the spotlight follows the pointer
 
         let view = OverlayView(frame: NSRect(origin: .zero, size: frame.size))
         view.onDismiss = { [weak self] in self?.endDrawing() }

@@ -27,7 +27,8 @@ While drawing:
 | drag | draw with the current tool |
 | `P` `A` `R` `O` `T` `H` | freehand / arrow / rectangle / ellipse / text / highlighter |
 | `1`–`5` | blue / red / green / yellow / purple |
-| `[` `]` | thinner / thicker stroke |
+| `S` | toggle the spotlight |
+| `[` `]` | thinner / thicker stroke (spotlight size, while it's up) |
 | `−` `=` | less / more corner radius |
 | `F` | toggle fade-out on/off |
 | `⌘Z` | undo last mark |
@@ -38,6 +39,15 @@ The **highlighter** drags a wide translucent band in the current colour, so
 whatever it covers still reads through — yellow over a line of code or a
 paragraph works the way you'd expect. Its width follows the stroke thickness
 (`[` and `]`), scaled up.
+
+The **spotlight** dims the whole screen except a soft-edged circle that follows
+the pointer, for pulling attention to one part of a demo. It's a mode, not a
+tool: every drawing tool still works while it's on. `[` and `]` resize it, or
+pick a size from **Spotlight Size** in the menu.
+
+By default the pointer is **left alone** in draw mode — no crosshair, no I-beam —
+so a recording doesn't give away that an annotation tool is running. Turn off
+**Keep Normal Cursor** in the menu if you'd rather have the crosshair back.
 
 > `⌘Z` only applies to marks still on screen. With fade on (the default) a mark
 > is gone about a third of a second after you release the mouse, so there is
