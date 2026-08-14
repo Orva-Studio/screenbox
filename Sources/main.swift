@@ -419,13 +419,14 @@ final class OverlayWindow: NSWindow {
 
 // MARK: - App
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem!
     private var window: OverlayWindow?
     private var overlay: OverlayView?
     private var toolbar: ToolbarPanel?
     private var hotKeyRef: EventHotKeyRef?
     private var passThroughHotKeyRef: EventHotKeyRef?
+    private var passThroughWasOn = false
     private var isDrawing = false
 
     private let prefs = Prefs.shared
@@ -594,6 +595,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.items.first { $0.identifier?.rawValue == "passThrough" }?.state = prefs.passThrough ? .on : .off
     }
 
+    /// Click-through is only meaningful while drawing — grey it out otherwise,
+    /// rather than accepting a click that quietly does nothing.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.identifier?.rawValue == "passThrough" ? isDrawing : true
+    }
+
     // MARK: Menu actions
 
     @objc private func pickColor(_ sender: NSMenuItem) { prefs.colorIndex = sender.tag }
@@ -681,6 +688,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyPassThrough() {
         window?.ignoresMouseEvents = prefs.passThrough
         setIcon(drawing: isDrawing)
+
+        let wasPassingThrough = passThroughWasOn
+        passThroughWasOn = prefs.passThrough
+
+        // Turning it off from the toolbar (a non-activating panel) or the global
+        // hotkey leaves whatever you clicked through to still frontmost, so the
+        // overlay wouldn't see a keystroke — take focus back explicitly. Only on
+        // the way out, so an ordinary colour change never steals focus.
+        if wasPassingThrough, !prefs.passThrough, isDrawing, let window, let overlay {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(overlay)
+        }
     }
 
     private func beginDrawing() {
@@ -742,6 +762,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func endDrawing() {
+        // Before clearing the flag, so applyPassThrough doesn't yank focus back
+        // to an overlay we're in the middle of tearing down.
+        isDrawing = false
         prefs.passThrough = false // don't leave the menu claiming a mode we've left
         hideToolbar()
         overlay?.clear()
