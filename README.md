@@ -85,11 +85,14 @@ The running version shows at the bottom of the menu.
 To cut a release:
 
 ```bash
-git tag v1.2.0
-git push --tags
+./scripts/release.sh 1.2.0
 ```
 
-That triggers `.github/workflows/release.yml`, which builds on `macos-latest`,
+It refuses unless you're on a clean `main`, fast-forwards, checks the tag is
+free, does a smoke build so a broken commit can't burn a tag, then tags and
+pushes.
+
+The push triggers `.github/workflows/release.yml`, which builds on `macos-latest`,
 zips the bundle with `ditto`, and publishes a GitHub release with the zip
 attached.
 
