@@ -69,6 +69,7 @@ While drawing:
 | `P` `A` `R` `O` `T` `H` | freehand / arrow / rectangle / ellipse / text / highlighter |
 | `1`–`5` | blue / red / green / yellow / purple |
 | `S` | toggle the spotlight |
+| `X` | click through — let clicks and scrolling reach the app underneath |
 | `[` `]` | thinner / thicker stroke (spotlight size, while it's up) |
 | `−` `=` | less / more corner radius |
 | `F` | toggle fade-out on/off |
@@ -85,6 +86,18 @@ The **spotlight** dims the whole screen except a soft-edged circle that follows
 the pointer, for pulling attention to one part of a demo. It's a mode, not a
 tool: every drawing tool still works while it's on. `[` and `]` resize it, or
 pick a size from **Spotlight Size** in the menu.
+
+**Click through** (`X`, the toolbar button, or **⌃⌥⌘X** from anywhere) hands
+clicks and scrolling back to whatever is underneath, so you can scroll the page
+you're demoing without leaving draw mode. Existing marks stay on screen; you
+just can't draw new ones until it's off. The menu bar icon changes while it's
+active, since clicks going straight through is otherwise indistinguishable from
+having exited.
+
+Because every click passes through, the way back can't be a click on the
+overlay — use the global **⌃⌥⌘X**, the `X` key (while ScreenBox still has
+focus), or the toolbar button, which is a separate window and keeps taking
+clicks. Leaving draw mode clears it too.
 
 By default the pointer is **left alone** in draw mode — no crosshair, no I-beam —
 so a recording doesn't give away that an annotation tool is running. Turn off
@@ -155,7 +168,7 @@ sign with a Developer ID certificate, then `xcrun notarytool submit --wait` and
 - The overlay window only exists while draw mode is active, so it never
   intercepts clicks when you're working normally.
 - While draw mode *is* active the overlay swallows clicks on that screen — press
-  `esc` before advancing slides.
+  `X` to click through, or `esc` to leave.
 - Boxes are stroked with a dark halo so they stay readable on light and dark
   backgrounds.
 - Uses a Carbon hotkey, so no Accessibility permission is required.

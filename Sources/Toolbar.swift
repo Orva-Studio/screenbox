@@ -116,6 +116,7 @@ final class ToolbarPanel: NSPanel {
     private var dots: [ColorDot] = []
     private var toolButtons: [(Tool, ToolButton)] = []
     private var spotlightButton: ToolButton?
+    private var passThroughButton: ToolButton?
     private let prefs = Prefs.shared
 
     var onClose: (() -> Void)?
@@ -187,6 +188,13 @@ final class ToolbarPanel: NSPanel {
         spotlightButton = spotlight
         place(spotlight, width: 30)
 
+        // The toolbar is a separate window, so it keeps taking clicks even while
+        // the overlay is passing them through — this is the way back.
+        let passThrough = ToolButton(symbolName: "cursorarrow.click.2", tooltip: "Click through  (X or ⌃⌥⌘X)")
+        passThrough.onClick = { [weak self] in self?.prefs.passThrough.toggle() }
+        passThroughButton = passThrough
+        place(passThrough, width: 30)
+
         let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
         clear.onClick = { [weak self] in self?.onClear?() }
         place(clear, width: 30)
@@ -215,6 +223,7 @@ final class ToolbarPanel: NSPanel {
             button.isSelected = (tool == prefs.tool)
         }
         spotlightButton?.isSelected = prefs.spotlight
+        passThroughButton?.isSelected = prefs.passThrough
     }
 
     // MARK: Positioning

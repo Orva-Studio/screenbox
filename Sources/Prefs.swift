@@ -12,7 +12,7 @@ final class Prefs {
     private enum Key: String {
         case colorIndex, lineWidth, cornerRadius, autoFade, holdDuration, fadeDuration
         case tool, toolbarX, toolbarY, showToolbar
-        case keepNormalCursor, spotlight, spotlightRadius
+        case keepNormalCursor, spotlight, spotlightRadius, passThrough
     }
 
     /// Fired after any preference changes, so the UI and overlay can resync.
@@ -43,6 +43,18 @@ final class Prefs {
     var keepNormalCursor: Bool {
         get { defaults.bool(forKey: Key.keepNormalCursor.rawValue) }
         set { write(Key.keepNormalCursor, newValue) }
+    }
+
+    // MARK: Pass-through
+
+    /// Lets clicks and scrolling reach whatever is under the overlay. Marks stay
+    /// on screen; you just can't draw new ones until it's off.
+    ///
+    /// Deliberately not persisted: starting a session unable to click, with no
+    /// memory of why, is a trap. `beginDrawing` clears it every time.
+    var passThrough: Bool {
+        get { defaults.bool(forKey: Key.passThrough.rawValue) }
+        set { write(Key.passThrough, newValue) }
     }
 
     // MARK: Spotlight
