@@ -115,6 +115,7 @@ final class Divider: NSView {
 final class ToolbarPanel: NSPanel {
     private var dots: [ColorDot] = []
     private var toolButtons: [(Tool, ToolButton)] = []
+    private var spotlightButton: ToolButton?
     private let prefs = Prefs.shared
 
     var onClose: (() -> Void)?
@@ -181,6 +182,11 @@ final class ToolbarPanel: NSPanel {
 
         place(Divider(frame: NSRect(x: 0, y: 0, width: 9, height: height)), width: 9, trailing: 2)
 
+        let spotlight = ToolButton(symbolName: "flashlight.on.fill", tooltip: "Spotlight  (S)")
+        spotlight.onClick = { [weak self] in self?.prefs.spotlight.toggle() }
+        spotlightButton = spotlight
+        place(spotlight, width: 30)
+
         let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
         clear.onClick = { [weak self] in self?.onClear?() }
         place(clear, width: 30)
@@ -208,6 +214,7 @@ final class ToolbarPanel: NSPanel {
         for (tool, button) in toolButtons {
             button.isSelected = (tool == prefs.tool)
         }
+        spotlightButton?.isSelected = prefs.spotlight
     }
 
     // MARK: Positioning

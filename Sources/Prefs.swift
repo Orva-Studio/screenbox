@@ -12,6 +12,7 @@ final class Prefs {
     private enum Key: String {
         case colorIndex, lineWidth, cornerRadius, autoFade, holdDuration, fadeDuration
         case tool, toolbarX, toolbarY, showToolbar
+        case keepNormalCursor, spotlight, spotlightRadius
     }
 
     /// Fired after any preference changes, so the UI and overlay can resync.
@@ -29,7 +30,33 @@ final class Prefs {
             Key.fadeDuration.rawValue: 0.2,
             Key.tool.rawValue: Tool.rectangle.rawValue,
             Key.showToolbar.rawValue: true,
+            Key.keepNormalCursor.rawValue: true,
+            Key.spotlight.rawValue: false,
+            Key.spotlightRadius.rawValue: 140.0,
         ])
+    }
+
+    // MARK: Cursor
+
+    /// Leave the pointer alone in draw mode instead of swapping in a crosshair
+    /// or I-beam — useful when demoing, where a changed cursor gives the game away.
+    var keepNormalCursor: Bool {
+        get { defaults.bool(forKey: Key.keepNormalCursor.rawValue) }
+        set { write(Key.keepNormalCursor, newValue) }
+    }
+
+    // MARK: Spotlight
+
+    /// Dims everything but a circle around the pointer.
+    var spotlight: Bool {
+        get { defaults.bool(forKey: Key.spotlight.rawValue) }
+        set { write(Key.spotlight, newValue) }
+    }
+
+    /// Radius of the lit circle, in points.
+    var spotlightRadius: CGFloat {
+        get { CGFloat(defaults.double(forKey: Key.spotlightRadius.rawValue)) }
+        set { write(Key.spotlightRadius, Double(min(max(newValue, 40), 600))) }
     }
 
     // MARK: Tool
@@ -114,6 +141,7 @@ final class Prefs {
 
     static let lineWidthChoices: [CGFloat] = [2, 3, 4, 6, 8, 12]
     static let cornerRadiusChoices: [CGFloat] = [0, 4, 8, 16, 28]
+    static let spotlightRadiusChoices: [CGFloat] = [80, 110, 140, 200, 280, 400]
     /// (label, hold, fade)
     static let speedChoices: [(String, TimeInterval, TimeInterval)] = [
         ("Instant", 0.0, 0.15),
