@@ -675,10 +675,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showToolbar(on screen: NSScreen? = nil) {
+        // No screen at all means nothing to float the bar over — with the
+        // overlay itself already gone, force-unwrapping here would just crash.
+        guard let target = screen ?? window?.screen ?? NSScreen.main else { return }
+
         let panel = toolbar ?? ToolbarPanel()
         panel.onClose = { [weak self] in self?.endDrawing() }
         panel.onClear = { [weak self] in self?.overlay?.clear() }
-        panel.position(on: screen ?? window?.screen ?? NSScreen.main!)
+        panel.position(on: target)
         panel.orderFront(nil)
         panel.syncSelection()
         toolbar = panel
