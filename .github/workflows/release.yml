@@ -21,20 +21,26 @@ jobs:
       - name: Build
         run: ./build.sh
 
-      # `ditto` rather than `zip`: it preserves the bundle's symlinks and
-      # resource forks, which a plain zip mangles.
+      # Two assets: a DMG for people who just want to drag it to Applications,
+      # and a zip for scripted installs. `ditto` rather than `zip` for the
+      # latter — it preserves the bundle's symlinks and resource forks.
       - name: Package
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           [ "$GITHUB_REF_TYPE" = tag ] || VERSION="dev-${GITHUB_SHA::7}"
           ditto -c -k --keepParent build/ScreenBox.app "ScreenBox-$VERSION.zip"
-          echo "ASSET=ScreenBox-$VERSION.zip" >> "$GITHUB_ENV"
+          ./scripts/make-dmg.sh "$VERSION"
+          mv "build/ScreenBox-$VERSION.dmg" .
+          echo "DMG=ScreenBox-$VERSION.dmg" >> "$GITHUB_ENV"
+          echo "ZIP=ScreenBox-$VERSION.zip" >> "$GITHUB_ENV"
 
-      - name: Upload build artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ASSET }}
-          path: ${{ env.ASSET }}
+          name: ScreenBox
+          path: |
+            ${{ env.DMG }}
+            ${{ env.ZIP }}
 
       # The app is only ad-hoc signed, so Gatekeeper quarantines it on download.
       # The release notes have to say how to get past that.
@@ -46,9 +52,9 @@ jobs:
           # Re-running a tag build shouldn't fail the job just because the
           # release already exists — replace the asset instead.
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$ASSET" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$DMG" "$ZIP" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$ASSET" \
+            gh release create "$GITHUB_REF_NAME" "$DMG" "$ZIP" \
               --title "$GITHUB_REF_NAME" \
               --notes-file .github/install-notes.md \
               --generate-notes

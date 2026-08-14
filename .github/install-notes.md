@@ -1,4 +1,5 @@
-Unzip and drag **ScreenBox.app** to `/Applications`.
+Download **ScreenBox-x.y.z.dmg**, open it, and drag ScreenBox to Applications.
+(The `.zip` is the same app, for scripted installs.)
 
 ScreenBox isn't notarised yet, so macOS refuses to open it on first launch.
 Either right-click the app and choose **Open**, or clear the quarantine flag:
