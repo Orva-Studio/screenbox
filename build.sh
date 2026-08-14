@@ -2,8 +2,7 @@
 # Builds ScreenBox.app into ./build/
 #
 # The version comes from the latest git tag (`v1.2.0` -> `1.2.0`), so tagging a
-# release is the only thing that changes it. Set VERSION= to override, which is
-# what the release workflow does when building from a tag ref.
+# release is the only thing that changes it. Set VERSION= to override.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -27,10 +26,22 @@ BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 
-swiftc -O \
-  -framework Cocoa -framework Carbon \
-  -o "$APP/Contents/MacOS/ScreenBox" \
-  Sources/Prefs.swift Sources/Tool.swift Sources/Toolbar.swift Sources/main.swift
+# Universal binary. CI runs on Apple Silicon, so building for the host alone
+# would ship releases that Intel Macs refuse to launch ("bad CPU type").
+SOURCES=(Sources/Prefs.swift Sources/Tool.swift Sources/Toolbar.swift Sources/main.swift)
+SLICES=()
+for ARCH in arm64 x86_64; do
+  SLICE="build/$ARCH-ScreenBox"
+  swiftc -O \
+    -target "$ARCH-apple-macos13.0" \
+    -framework Cocoa -framework Carbon \
+    -o "$SLICE" \
+    "${SOURCES[@]}"
+  SLICES+=("$SLICE")
+done
+
+lipo -create -output "$APP/Contents/MacOS/ScreenBox" "${SLICES[@]}"
+rm -f "${SLICES[@]}"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

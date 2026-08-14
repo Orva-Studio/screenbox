@@ -43,7 +43,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "$ASSET" \
-            --title "$GITHUB_REF_NAME" \
-            --notes-file .github/install-notes.md \
-            --generate-notes
+          # Re-running a tag build shouldn't fail the job just because the
+          # release already exists — replace the asset instead.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ASSET" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$ASSET" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file .github/install-notes.md \
+              --generate-notes
+          fi

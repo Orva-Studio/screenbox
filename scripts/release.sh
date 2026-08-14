@@ -28,6 +28,10 @@ if [ -n "$STATUS" ]; then
 fi
 
 git pull --ff-only
+# Explicitly, because a plain pull only brings tags reachable from what it
+# fetched — a tag already on origin could otherwise slip through the check
+# below and only fail at push time, leaving a stray local tag behind.
+git fetch --tags
 
 if [ -n "$(git tag --list "$TAG")" ]; then
   echo "tag $TAG already exists" >&2
