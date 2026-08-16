@@ -705,10 +705,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setIcon(drawing: Bool) {
-        statusItem.button?.image = NSImage(
-            systemSymbolName: drawing ? "rectangle.dashed.badge.record" : "rectangle.dashed",
-            accessibilityDescription: drawing ? "ScreenBox — drawing" : "ScreenBox"
-        )
+        let image = AppDelegate.menuBarIcon(drawing: drawing)
+        image.isTemplate = true // let AppKit tint it for light/dark and highlight
+        image.accessibilityDescription = drawing ? "ScreenBox — drawing" : "ScreenBox"
+        statusItem.button?.image = image
+    }
+
+    /// The app mark — a highlighter drawing a box — at menu bar size.
+    ///
+    /// Drawn rather than shipped as an asset: an 18pt glyph downscaled from
+    /// artwork loses the gap between pen and box, which is the whole read.
+    private static func menuBarIcon(drawing: Bool) -> NSImage {
+        NSImage(size: NSSize(width: 18, height: 16), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return true }
+
+            let box = CGPath(roundedRect: CGRect(x: 0.9, y: 1.2, width: 11.2, height: 7.8),
+                             cornerWidth: 2.0, cornerHeight: 2.0, transform: nil)
+
+            // The marker, built pointing straight up with its nib on the origin,
+            // then swung to 45° and set down on the box's top-left corner.
+            let marker = CGMutablePath()
+            marker.move(to: CGPoint(x: -1.15, y: 0))          // nib
+            marker.addLine(to: CGPoint(x: 1.15, y: 0))
+            marker.addLine(to: CGPoint(x: 2.15, y: 2.1))
+            marker.addLine(to: CGPoint(x: -2.15, y: 2.1))
+            marker.closeSubpath()
+            marker.addRoundedRect(in: CGRect(x: -2.15, y: 2.4, width: 4.3, height: 5.6),
+                                  cornerWidth: 1.3, cornerHeight: 1.3)
+            var place = CGAffineTransform(translationX: 8.0, y: 9.1).rotated(by: -.pi / 4)
+            let pen = marker.copy(using: &place)!
+
+            ctx.setFillColor(NSColor.black.cgColor)
+            ctx.setStrokeColor(NSColor.black.cgColor)
+            // Drawing mode fills the box, so a glance at the menu bar says
+            // whether the overlay is live.
+            ctx.addPath(box)
+            if drawing {
+                ctx.fillPath()
+            } else {
+                ctx.setLineWidth(1.7)
+                ctx.strokePath()
+            }
+
+            // Knock a hairline of clearance out from under the pen, or the two
+            // shapes merge into one blob at this size.
+            ctx.setBlendMode(.clear)
+            ctx.addPath(pen.copy(strokingWithWidth: 2.2, lineCap: .round, lineJoin: .round,
+                                 miterLimit: 10))
+            ctx.fillPath()
+
+            ctx.setBlendMode(.normal)
+            ctx.addPath(pen)
+            ctx.fillPath()
+            return true
+        }
     }
 }
 
