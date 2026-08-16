@@ -26,7 +26,15 @@ You only do this once. There's no installer, no background daemon, and no
 Accessibility permission to grant — the app is a menu bar icon and a global
 hotkey, nothing else.
 
-Then press **⌃⌥⌘B** to draw. To have it start with your Mac, add it to
+To start it, double-click ScreenBox in Applications, or from a terminal:
+
+```bash
+open -a ScreenBox
+```
+
+Nothing appears in the Dock and no window opens — ScreenBox runs as a menu bar
+app, so the only sign it's running is the box icon up in the menu bar. (It won't
+show up in ⌘-Tab either.) Then press **⌃⌥⌘B** to draw. To have it start with your Mac, add it to
 **System Settings → General → Login Items**.
 
 To uninstall, quit it from the menu bar and drag `/Applications/ScreenBox.app`
