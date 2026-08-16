@@ -6,27 +6,28 @@ Press a hotkey, drag a box around whatever you're talking about, and it fades aw
 
 ## Install
 
-Grab **ScreenBox-x.y.z.dmg** from the
-[latest release](https://github.com/Orva-Studio/screenbox/releases/latest), open
-it, and drag ScreenBox to Applications. Requires macOS 13 or later; the build is
-universal, so it runs natively on both Apple silicon and Intel. (The `.zip` next
-to it is the same app, for scripted installs.)
+Requires macOS 13 or later. The build is universal, so it runs natively on both
+Apple silicon and Intel.
 
-**First launch takes an extra step.** ScreenBox is only ad-hoc signed — there's
-no Apple Developer account behind it — so macOS quarantines it on download and
-refuses to open it. Either right-click the app and choose **Open**, then confirm
-(on Ventura and later you may need **System Settings → Privacy & Security →
-Open Anyway** instead), or clear the flag yourself:
+**1. Install it.** Grab **ScreenBox-x.y.z.dmg** from the
+[latest release](https://github.com/Orva-Studio/screenbox/releases/latest), open
+it, and drag ScreenBox to Applications. (The `.zip` next to it is the same app,
+for scripted installs.)
+
+**2. Clear the quarantine flag.** This is the command you have to run after
+installing from the DMG:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/ScreenBox.app
 ```
 
-You only do this once. There's no installer, no background daemon, and no
-Accessibility permission to grant — the app is a menu bar icon and a global
-hotkey, nothing else.
+Without it macOS refuses to open the app — it's only ad-hoc signed, there's no
+Apple Developer account behind it, so anything downloaded gets quarantined. You
+only do this once. (If you'd rather not use the terminal: right-click the app and
+choose **Open**, then confirm — on Ventura and later you may need **System
+Settings → Privacy & Security → Open Anyway** instead.)
 
-To start it, double-click ScreenBox in Applications, or from a terminal:
+**3. Launch it.** Double-click ScreenBox in Applications, or:
 
 ```bash
 open -a ScreenBox
@@ -34,8 +35,11 @@ open -a ScreenBox
 
 Nothing appears in the Dock and no window opens — ScreenBox runs as a menu bar
 app, so the only sign it's running is the box icon up in the menu bar. (It won't
-show up in ⌘-Tab either.) Then press **⌃⌥⌘B** to draw. To have it start with your Mac, add it to
-**System Settings → General → Login Items**.
+show up in ⌘-Tab either.) Then press **⌃⌥⌘B** to draw.
+
+There's no installer, no background daemon, and no Accessibility permission to
+grant — the app is a menu bar icon and a global hotkey, nothing else. To have it
+start with your Mac, add it to **System Settings → General → Login Items**.
 
 To uninstall, quit it from the menu bar and drag `/Applications/ScreenBox.app`
 to the trash; `defaults delete local.screenbox` clears its saved preferences.
