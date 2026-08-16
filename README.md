@@ -4,7 +4,7 @@
 
 <h1 align="center">ScreenBox</h1>
 
-<p align="center"><b>Draw a box around it. It fades on its own.</b></p>
+<p align="center"><b>Draw on your screen while you record.</b></p>
 
 A tiny macOS menu bar app for drawing highlight boxes on screen while recording or presenting.
 
