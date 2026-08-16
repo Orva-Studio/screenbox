@@ -24,7 +24,11 @@ fi
 BUILD=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+# The icon is checked in prebuilt: iconutil needs a whole .iconset directory,
+# and regenerating it on every build would only ever produce the same file.
+cp design/ScreenBox.icns "$APP/Contents/Resources/ScreenBox.icns"
 
 # Universal binary. CI runs on Apple Silicon, so building for the host alone
 # would ship releases that Intel Macs refuse to launch ("bad CPU type").
@@ -57,6 +61,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 	<key>CFBundleShortVersionString</key>
 	<string>${VERSION}</string>
 	<key>CFBundleExecutable</key>
+	<string>ScreenBox</string>
+	<key>CFBundleIconFile</key>
 	<string>ScreenBox</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
