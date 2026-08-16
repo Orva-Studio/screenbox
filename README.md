@@ -28,9 +28,9 @@ choose **Open**, then confirm — on Ventura and later you may need **System
 Settings → Privacy & Security → Open Anyway** instead.)
 
 **3. Launch it.** Double-click ScreenBox in Applications. Nothing appears in the
-Dock and no window opens — ScreenBox runs as a menu bar
-app, so the only sign it's running is the box icon up in the menu bar. (It won't
-show up in ⌘-Tab either.) Then press **⌃⌥⌘B** to draw.
+Dock and no window opens — ScreenBox runs as a menu bar app, so the only sign
+it's running is the box icon up in the menu bar. (It won't show up in ⌘-Tab
+either.) Then press **⌃⌥⌘B** to draw.
 
 There's no installer, no background daemon, and no Accessibility permission to
 grant — the app is a menu bar icon and a global hotkey, nothing else. To have it
