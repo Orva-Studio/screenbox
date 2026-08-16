@@ -27,13 +27,8 @@ only do this once. (If you'd rather not use the terminal: right-click the app an
 choose **Open**, then confirm — on Ventura and later you may need **System
 Settings → Privacy & Security → Open Anyway** instead.)
 
-**3. Launch it.** Double-click ScreenBox in Applications, or:
-
-```bash
-open -a ScreenBox
-```
-
-Nothing appears in the Dock and no window opens — ScreenBox runs as a menu bar
+**3. Launch it.** Double-click ScreenBox in Applications. Nothing appears in the
+Dock and no window opens — ScreenBox runs as a menu bar
 app, so the only sign it's running is the box icon up in the menu bar. (It won't
 show up in ⌘-Tab either.) Then press **⌃⌥⌘B** to draw.
 
