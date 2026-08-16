@@ -1,4 +1,10 @@
-# ScreenBox
+<p align="center">
+  <img src="design/icons/appicon-256.png" width="128" alt="ScreenBox">
+</p>
+
+<h1 align="center">ScreenBox</h1>
+
+<p align="center"><b>Draw a box around it. It fades on its own.</b></p>
 
 A tiny macOS menu bar app for drawing highlight boxes on screen while recording or presenting.
 
