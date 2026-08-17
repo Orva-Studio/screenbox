@@ -45,6 +45,18 @@ final class Prefs {
         set { write(Key.keepNormalCursor, newValue) }
     }
 
+    // MARK: Pass-through
+
+    /// Lets clicks and scrolling reach whatever is under the overlay. Marks stay
+    /// on screen; you just can't draw new ones until it's off.
+    ///
+    /// Deliberately not persisted — it lives in memory only, so a stale `true`
+    /// can never outlast the process and leave the menu claiming a mode that
+    /// isn't running. `beginDrawing` clears it every time as well.
+    var passThrough = false {
+        didSet { onChange?() }
+    }
+
     // MARK: Spotlight
 
     /// Dims everything but a circle around the pointer.

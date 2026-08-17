@@ -248,6 +248,11 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         textField = field
     }
 
+    /// Commits any live text field from outside the view, for the transitions
+    /// that leave it unusable — clicks passing through means no way to type
+    /// into it, and no way to click it again either.
+    func endTextEntry() { commitTextField() }
+
     /// Turns the live text field into a mark. Safe to call when there isn't one.
     @objc private func commitTextField() {
         guard let field = textField else { return }
@@ -345,6 +350,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case kVK_ANSI_H: prefs.tool = .highlighter
 
         case kVK_ANSI_S: prefs.spotlight.toggle()
+        case kVK_ANSI_X: prefs.passThrough.toggle()
 
         // While the spotlight is up, the brackets size it — that's the thing
         // you're most likely reaching for.
@@ -418,12 +424,14 @@ final class OverlayWindow: NSWindow {
 
 // MARK: - App
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem!
     private var window: OverlayWindow?
     private var overlay: OverlayView?
     private var toolbar: ToolbarPanel?
     private var hotKeyRef: EventHotKeyRef?
+    private var passThroughHotKeyRef: EventHotKeyRef?
+    private var passThroughWasOn = false
     private var isDrawing = false
 
     private let prefs = Prefs.shared
@@ -445,6 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.syncMenuState()
             self?.toolbar?.syncSelection()
             self?.overlay?.settingsChanged()
+            self?.applyPassThrough()
         }
 
         // Debug affordance: `ScreenBox --draw` opens draw mode immediately.
@@ -493,6 +502,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         spotlight.identifier = .init("spotlight")
         menu.addItem(spotlight)
 
+        let passThrough = NSMenuItem(title: "Click Through  (⌃⌥⌘X)", action: #selector(togglePassThrough), keyEquivalent: "")
+        passThrough.target = self
+        passThrough.identifier = .init("passThrough")
+        menu.addItem(passThrough)
+
         let cursor = NSMenuItem(title: "Keep Normal Cursor", action: #selector(toggleCursor), keyEquivalent: "")
         cursor.target = self
         cursor.identifier = .init("cursor")
@@ -515,6 +529,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for line in ["  P A R O T H — tool",
                      "  1–5 — colour",
                      "  S — spotlight",
+                     "  X — click through",
                      "  [ ] — thinner / thicker (spotlight size)",
                      "  − = — corner radius",
                      "  F — toggle fade",
@@ -582,6 +597,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.items.first { $0.identifier?.rawValue == "toolbar" }?.state = prefs.showToolbar ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "spotlight" }?.state = prefs.spotlight ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "cursor" }?.state = prefs.keepNormalCursor ? .on : .off
+        menu.items.first { $0.identifier?.rawValue == "passThrough" }?.state = prefs.passThrough ? .on : .off
+    }
+
+    /// Click-through is only meaningful while drawing — grey it out otherwise,
+    /// rather than accepting a click that quietly does nothing.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        item.identifier?.rawValue == "passThrough" ? isDrawing : true
     }
 
     // MARK: Menu actions
@@ -620,16 +642,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             eventKind: UInt32(kEventHotKeyPressed)
         )
 
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, userData -> OSStatus in
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData -> OSStatus in
             guard let userData else { return noErr }
             let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async { delegate.toggleDrawing() }
+
+            // Which hotkey fired — both land in this one handler.
+            var pressed = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID), nil,
+                              MemoryLayout<EventHotKeyID>.size, nil, &pressed)
+
+            DispatchQueue.main.async {
+                switch pressed.id {
+                case 2: delegate.togglePassThrough()
+                default: delegate.toggleDrawing()
+                }
+            }
             return noErr
         }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
 
-        let id = EventHotKeyID(signature: OSType(0x5342_4F58), id: 1) // 'SBOX'
+        let signature = OSType(0x5342_4F58) // 'SBOX'
         let modifiers = UInt32(controlKey | optionKey | cmdKey)
-        RegisterEventHotKey(UInt32(kVK_ANSI_B), modifiers, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+
+        RegisterEventHotKey(UInt32(kVK_ANSI_B), modifiers,
+                            EventHotKeyID(signature: signature, id: 1),
+                            GetApplicationEventTarget(), 0, &hotKeyRef)
+
+        // Pass-through hands every click to the app underneath, including the
+        // ones that would turn it off again — so it needs a way out that works
+        // when ScreenBox isn't the active app.
+        RegisterEventHotKey(UInt32(kVK_ANSI_X), modifiers,
+                            EventHotKeyID(signature: signature, id: 2),
+                            GetApplicationEventTarget(), 0, &passThroughHotKeyRef)
     }
 
     // MARK: Drawing mode
@@ -638,7 +682,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         isDrawing ? endDrawing() : beginDrawing()
     }
 
+    /// Only meaningful while drawing — outside it every click already passes
+    /// through, and leaving the flag set would strand the next session.
+    @objc func togglePassThrough() {
+        guard isDrawing else { return }
+        prefs.passThrough.toggle()
+    }
+
+    /// Marks stay visible either way; only mouse handling changes.
+    private func applyPassThrough() {
+        window?.ignoresMouseEvents = prefs.passThrough
+        setIcon(drawing: isDrawing)
+
+        let wasPassingThrough = passThroughWasOn
+        passThroughWasOn = prefs.passThrough
+
+        // A text field open when clicks start passing through is stranded: you
+        // can't type into it (keys go to the app below once you click there)
+        // and you can't click it either. Commit it on the way in.
+        if !wasPassingThrough, prefs.passThrough {
+            overlay?.endTextEntry()
+        }
+
+        // Turning it off from the toolbar (a non-activating panel) or the global
+        // hotkey leaves whatever you clicked through to still frontmost, so the
+        // overlay wouldn't see a keystroke — take focus back explicitly. Only on
+        // the way out, so an ordinary colour change never steals focus.
+        if wasPassingThrough, !prefs.passThrough, isDrawing, let window, let overlay {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(overlay)
+        }
+    }
+
     private func beginDrawing() {
+        prefs.passThrough = false // never open a session that can't be clicked
+
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
             ?? NSScreen.main
@@ -695,6 +774,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func endDrawing() {
+        // Before clearing the flag, so applyPassThrough doesn't yank focus back
+        // to an overlay we're in the middle of tearing down.
+        isDrawing = false
+        prefs.passThrough = false // don't leave the menu claiming a mode we've left
         hideToolbar()
         overlay?.clear()
         window?.orderOut(nil)
@@ -705,9 +788,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setIcon(drawing: Bool) {
-        let image = AppDelegate.menuBarIcon(drawing: drawing)
+        // Pass-through gets its own icon: with clicks going straight through,
+        // the menu bar is the only clue that draw mode is still on at all.
+        let passing = drawing && prefs.passThrough
+        let image = AppDelegate.menuBarIcon(drawing: drawing, passThrough: passing)
         image.isTemplate = true // let AppKit tint it for light/dark and highlight
-        image.accessibilityDescription = drawing ? "ScreenBox — drawing" : "ScreenBox"
+        image.accessibilityDescription = passing ? "ScreenBox — clicks passing through"
+            : drawing ? "ScreenBox — drawing" : "ScreenBox"
         statusItem.button?.image = image
     }
 
@@ -715,7 +802,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Drawn rather than shipped as an asset: an 18pt glyph downscaled from
     /// artwork loses the gap between pen and box, which is the whole read.
-    private static func menuBarIcon(drawing: Bool) -> NSImage {
+    private static func menuBarIcon(drawing: Bool, passThrough: Bool) -> NSImage {
         NSImage(size: NSSize(width: 18, height: 16), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return true }
 
@@ -738,11 +825,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ctx.setFillColor(NSColor.black.cgColor)
             ctx.setStrokeColor(NSColor.black.cgColor)
             // Drawing mode fills the box, so a glance at the menu bar says
-            // whether the overlay is live.
+            // whether the overlay is live — and breaks it into dashes while
+            // clicks are passing through, which is the state you can't see.
             ctx.addPath(box)
-            if drawing {
+            switch (drawing, passThrough) {
+            case (true, false):
                 ctx.fillPath()
-            } else {
+            case (true, true):
+                ctx.setLineWidth(1.7)
+                ctx.setLineDash(phase: 0, lengths: [2.4, 1.8])
+                ctx.strokePath()
+                ctx.setLineDash(phase: 0, lengths: [])
+            default:
                 ctx.setLineWidth(1.7)
                 ctx.strokePath()
             }
