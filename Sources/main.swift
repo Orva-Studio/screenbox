@@ -248,6 +248,11 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         textField = field
     }
 
+    /// Commits any live text field from outside the view, for the transitions
+    /// that leave it unusable — clicks passing through means no way to type
+    /// into it, and no way to click it again either.
+    func endTextEntry() { commitTextField() }
+
     /// Turns the live text field into a mark. Safe to call when there isn't one.
     @objc private func commitTextField() {
         guard let field = textField else { return }
@@ -691,6 +696,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         let wasPassingThrough = passThroughWasOn
         passThroughWasOn = prefs.passThrough
+
+        // A text field open when clicks start passing through is stranded: you
+        // can't type into it (keys go to the app below once you click there)
+        // and you can't click it either. Commit it on the way in.
+        if !wasPassingThrough, prefs.passThrough {
+            overlay?.endTextEntry()
+        }
 
         // Turning it off from the toolbar (a non-activating panel) or the global
         // hotkey leaves whatever you clicked through to still frontmost, so the
