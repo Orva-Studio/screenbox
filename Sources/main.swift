@@ -549,6 +549,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let version = NSMenuItem(title: "ScreenBox \(Self.versionString)", action: nil, keyEquivalent: "")
         version.isEnabled = false
         menu.addItem(version)
+
+        let about = NSMenuItem(title: "About ScreenBox", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
+        about.identifier = .init("about")
+        menu.addItem(about)
         menu.addItem(withTitle: "Quit ScreenBox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem.menu = menu
@@ -606,7 +611,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     /// Click-through is only meaningful while drawing — grey it out otherwise,
     /// rather than accepting a click that quietly does nothing.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        item.identifier?.rawValue == "passThrough" ? isDrawing : true
+        switch item.identifier?.rawValue {
+        case "passThrough":
+            return isDrawing
+        // The panel is an ordinary window, so the draw overlay (.screenSaver)
+        // would bury it while taking key focus off the overlay — and under
+        // click-through the only way back would be the global hotkey.
+        case "about":
+            return !isDrawing
+        default:
+            return true
+        }
     }
 
     // MARK: Menu actions
@@ -642,6 +657,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else if toolbar != nil {
             hideToolbar()
         }
+    }
+
+    /// The standard AppKit About panel: icon, name, version and build from
+    /// Info.plist, copyright, plus the repo link below.
+    ///
+    /// A menu bar app has nowhere else to put attribution — there's no main
+    /// window and no app menu — so this is it.
+    @objc private func showAbout() {
+        let link = "https://github.com/Orva-Studio/screenbox"
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        ]
+        // Boxing the Optional straight into the dictionary would hand AppKit an
+        // `Optional<URL>` it can't act on, and the link would draw but not open.
+        if let url = URL(string: link) { attributes[.link] = url }
+        let credits = NSMutableAttributedString(string: link, attributes: attributes)
+        credits.addAttribute(.paragraphStyle, value: {
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            return style
+        }(), range: NSRange(location: 0, length: credits.length))
+
+        // Without this the panel opens behind whatever is frontmost — an
+        // accessory app isn't active just because its menu was clicked.
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
     // MARK: Global hotkey (Carbon — no Accessibility permission needed)
