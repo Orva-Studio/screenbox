@@ -70,6 +70,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 	<string>13.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT licence. Copyright © 2026 Orva Studio.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
