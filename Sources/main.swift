@@ -499,11 +499,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("\(Int(radius)) pt", #selector(pickSpotlightRadius), tag: index)
         }))
 
-        let spotlight = NSMenuItem(title: "Spotlight", action: #selector(toggleSpotlight), keyEquivalent: "")
-        spotlight.target = self
-        spotlight.identifier = .init("spotlight")
-        menu.addItem(spotlight)
-
         let passThrough = NSMenuItem(title: "Click Through  (⌃⌥⌘X)", action: #selector(togglePassThrough), keyEquivalent: "")
         passThrough.target = self
         passThrough.identifier = .init("passThrough")
@@ -584,7 +579,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         menu.items.first { $0.identifier?.rawValue == "fade" }?.state = prefs.autoFade ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "toolbar" }?.state = prefs.showToolbar ? .on : .off
-        menu.items.first { $0.identifier?.rawValue == "spotlight" }?.state = prefs.spotlight ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "cursor" }?.state = prefs.keepNormalCursor ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "passThrough" }?.state = prefs.passThrough ? .on : .off
     }
@@ -611,7 +605,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
     @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
     @objc private func toggleFade() { prefs.autoFade.toggle() }
-    @objc private func toggleSpotlight() { prefs.spotlight.toggle() }
     @objc private func toggleCursor() { prefs.keepNormalCursor.toggle() }
     @objc private func pickSpotlightRadius(_ sender: NSMenuItem) {
         prefs.spotlightRadius = Prefs.spotlightRadiusChoices[sender.tag]
