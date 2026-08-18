@@ -90,8 +90,8 @@ pick a size from **Spotlight Size** in the menu.
 
 `B` hides the floating **toolbar** for a clean recording and brings it back —
 every tool, colour and mode on it has a key equivalent, so nothing is lost while
-it's away. The state is saved like the other preferences, and **Show Toolbar** in the menu
-finds it again if you forget the key.
+it's away. The state is saved like the other preferences, and **Show Toolbar**
+in the menu finds it again if you forget the key.
 
 **Click through** (`X`, the toolbar button, or **⌃⌥⌘X** from anywhere) hands
 clicks and scrolling back to whatever is underneath, so you can scroll the page
