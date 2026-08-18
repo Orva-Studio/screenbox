@@ -532,6 +532,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                      "  1–5 — colour",
                      "  S — spotlight",
                      "  X — click through",
+                     "  B — show / hide the toolbar",
                      "  [ ] — thinner / thicker (spotlight size)",
                      "  − = — corner radius",
                      "  F — toggle fade",
