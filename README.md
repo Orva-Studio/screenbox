@@ -69,6 +69,7 @@ While drawing:
 | `P` `A` `R` `O` `T` `H` | freehand / arrow / rectangle / ellipse / text / highlighter |
 | `1`–`5` | blue / red / green / yellow / purple |
 | `S` | toggle the spotlight |
+| `B` | show/hide the toolbar |
 | `X` | click through — let clicks and scrolling reach the app underneath |
 | `[` `]` | thinner / thicker stroke (spotlight size, while it's up) |
 | `−` `=` | less / more corner radius |
@@ -87,6 +88,11 @@ the pointer, for pulling attention to one part of a demo. It's a mode, not a
 tool: every drawing tool still works while it's on. `[` and `]` resize it, or
 pick a size from **Spotlight Size** in the menu.
 
+`B` hides the floating **toolbar** for a clean recording and brings it back —
+every control on it has a key equivalent, so nothing is lost while it's away.
+The state is saved like the other preferences, and **Show Toolbar** in the menu
+finds it again if you forget the key.
+
 **Click through** (`X`, the toolbar button, or **⌃⌥⌘X** from anywhere) hands
 clicks and scrolling back to whatever is underneath, so you can scroll the page
 you're demoing without leaving draw mode. Existing marks stay on screen; you
@@ -97,7 +103,8 @@ having exited.
 Because every click passes through, the way back can't be a click on the
 overlay — use the global **⌃⌥⌘X**, the `X` key (while ScreenBox still has
 focus), or the toolbar button, which is a separate window and keeps taking
-clicks. Leaving draw mode clears it too.
+clicks — and if you've hidden the toolbar with `B`, the two key routes are all
+that's left. Leaving draw mode clears it too.
 
 By default the pointer is **left alone** in draw mode — no crosshair, no I-beam —
 so a recording doesn't give away that an annotation tool is running. Turn off

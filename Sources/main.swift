@@ -350,6 +350,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case kVK_ANSI_H: prefs.tool = .highlighter
 
         case kVK_ANSI_S: prefs.spotlight.toggle()
+        case kVK_ANSI_B: prefs.showToolbar.toggle()
         case kVK_ANSI_X: prefs.passThrough.toggle()
 
         // While the spotlight is up, the brackets size it — that's the thing
@@ -454,6 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             self?.toolbar?.syncSelection()
             self?.overlay?.settingsChanged()
             self?.applyPassThrough()
+            self?.syncToolbarVisibility()
         }
 
         // Debug affordance: `ScreenBox --draw` opens draw mode immediately.
@@ -625,11 +627,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc private func toggleToolbar() {
+        // The panel follows from `onChange` → `syncToolbarVisibility`, so this
+        // and the `B` key take the same path.
         prefs.showToolbar.toggle()
+    }
+
+    /// Brings the panel in line with the preference, from wherever it changed —
+    /// the menu item, the `B` key, or a write from anywhere else.
+    private func syncToolbarVisibility() {
         guard isDrawing else { return }
         if prefs.showToolbar {
-            showToolbar()
-        } else {
+            if toolbar == nil { showToolbar() }
+        } else if toolbar != nil {
             hideToolbar()
         }
     }
