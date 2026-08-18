@@ -115,6 +115,10 @@ so a recording doesn't give away that an annotation tool is running. Turn off
 > is gone about a third of a second after you release the mouse, so there is
 > usually nothing left to undo. Press `F` to turn fade off first.
 
+**Keyboard Shortcuts** in the menu opens the same table as a window, so the
+reference is one click away without leaving the app. **About ScreenBox** shows
+the version and links back here.
+
 ## Preferences
 
 Colour, thickness, corner radius, fade speed, and fade on/off all live in the

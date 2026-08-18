@@ -32,7 +32,7 @@ cp design/ScreenBox.icns "$APP/Contents/Resources/ScreenBox.icns"
 
 # Universal binary. CI runs on Apple Silicon, so building for the host alone
 # would ship releases that Intel Macs refuse to launch ("bad CPU type").
-SOURCES=(Sources/Prefs.swift Sources/Tool.swift Sources/Toolbar.swift Sources/main.swift)
+SOURCES=(Sources/Prefs.swift Sources/Tool.swift Sources/Shortcuts.swift Sources/Toolbar.swift Sources/main.swift)
 SLICES=()
 for ARCH in arm64 x86_64; do
   SLICE="build/$ARCH-ScreenBox"
