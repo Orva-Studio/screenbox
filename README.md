@@ -89,8 +89,8 @@ tool: every drawing tool still works while it's on. `[` and `]` resize it, or
 pick a size from **Spotlight Size** in the menu.
 
 `B` hides the floating **toolbar** for a clean recording and brings it back —
-every control on it has a key equivalent, so nothing is lost while it's away.
-The state is saved like the other preferences, and **Show Toolbar** in the menu
+every tool, colour and mode on it has a key equivalent, so nothing is lost while
+it's away. The state is saved like the other preferences, and **Show Toolbar** in the menu
 finds it again if you forget the key.
 
 **Click through** (`X`, the toolbar button, or **⌃⌥⌘X** from anywhere) hands
@@ -103,8 +103,9 @@ having exited.
 Because every click passes through, the way back can't be a click on the
 overlay — use the global **⌃⌥⌘X**, the `X` key (while ScreenBox still has
 focus), or the toolbar button, which is a separate window and keeps taking
-clicks — and if you've hidden the toolbar with `B`, the two key routes are all
-that's left. Leaving draw mode clears it too.
+clicks — or **Click Through** in the menu bar, which is where the changed icon
+is pointing anyway. Hiding the toolbar with `B` costs you the button; the other
+three still work. Leaving draw mode clears it too.
 
 By default the pointer is **left alone** in draw mode — no crosshair, no I-beam —
 so a recording doesn't give away that an annotation tool is running. Turn off
