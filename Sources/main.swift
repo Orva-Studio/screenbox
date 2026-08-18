@@ -430,21 +430,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var window: OverlayWindow?
     private var overlay: OverlayView?
     private var toolbar: ToolbarPanel?
+    /// Kept alive between openings — closing the window only orders it out.
+    private var shortcutsWindow: ShortcutsWindow?
     private var hotKeyRef: EventHotKeyRef?
     private var passThroughHotKeyRef: EventHotKeyRef?
     private var passThroughWasOn = false
     private var isDrawing = false
 
     private let prefs = Prefs.shared
-
-    /// Marketing version and build, both stamped into Info.plist by `build.sh`
-    /// from the current git tag.
-    static var versionString: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = info?["CFBundleVersion"] as? String ?? "?"
-        return "\(short) (\(build))"
-    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
@@ -456,6 +449,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             self?.overlay?.settingsChanged()
             self?.applyPassThrough()
             self?.syncToolbarVisibility()
+        }
+
+        // Debug affordance: `ScreenBox --shortcuts` opens the reference window.
+        if CommandLine.arguments.contains("--shortcuts") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.showShortcuts()
+            }
         }
 
         // Debug affordance: `ScreenBox --draw` opens draw mode immediately.
@@ -525,30 +525,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.addItem(toolbarItem)
         menu.addItem(.separator())
 
-        let help = NSMenuItem(title: "While drawing:", action: nil, keyEquivalent: "")
-        help.isEnabled = false
-        menu.addItem(help)
-        for line in ["  P A R O T H — tool",
-                     "  1–5 — colour",
-                     "  S — spotlight",
-                     "  X — click through",
-                     "  B — show / hide the toolbar",
-                     "  [ ] — thinner / thicker (spotlight size)",
-                     "  − = — corner radius",
-                     "  F — toggle fade",
-                     "  ⌘Z — undo",
-                     "  C — clear all",
-                     "  esc — clear and exit"] {
-            let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-
+        let shortcuts = NSMenuItem(title: "Keyboard Shortcuts…", action: #selector(showShortcuts), keyEquivalent: "")
+        shortcuts.target = self
+        shortcuts.identifier = .init("shortcuts")
+        menu.addItem(shortcuts)
         menu.addItem(.separator())
-
-        let version = NSMenuItem(title: "ScreenBox \(Self.versionString)", action: nil, keyEquivalent: "")
-        version.isEnabled = false
-        menu.addItem(version)
 
         let about = NSMenuItem(title: "About ScreenBox", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
@@ -614,10 +595,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         switch item.identifier?.rawValue {
         case "passThrough":
             return isDrawing
-        // The panel is an ordinary window, so the draw overlay (.screenSaver)
-        // would bury it while taking key focus off the overlay — and under
+        // These are ordinary windows, so the draw overlay (.screenSaver) would
+        // bury them while taking key focus off the overlay — and under
         // click-through the only way back would be the global hotkey.
-        case "about":
+        case "about", "shortcuts":
             return !isDrawing
         default:
             return true
@@ -657,6 +638,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         } else if toolbar != nil {
             hideToolbar()
         }
+    }
+
+    @objc private func showShortcuts() {
+        let window = shortcutsWindow ?? ShortcutsWindow()
+        shortcutsWindow = window
+        window.center()
+        // Same as the About panel: an accessory app isn't active just because
+        // its menu was clicked, so the window would open behind everything.
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     /// The standard AppKit About panel: icon, name, version and build from
