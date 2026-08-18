@@ -641,9 +641,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc private func showShortcuts() {
-        let window = shortcutsWindow ?? ShortcutsWindow()
-        shortcutsWindow = window
-        window.center()
+        // Centre only the first time: reopening should return the window to
+        // wherever it was dragged, not yank it back to the middle.
+        let window: ShortcutsWindow
+        if let existing = shortcutsWindow {
+            window = existing
+        } else {
+            window = ShortcutsWindow()
+            window.center()
+            shortcutsWindow = window
+        }
         // Same as the About panel: an accessory app isn't active just because
         // its menu was clicked, so the window would open behind everything.
         NSApp.activate(ignoringOtherApps: true)

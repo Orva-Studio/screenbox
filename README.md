@@ -146,7 +146,7 @@ wiring.
 The version is derived from git tags — nothing to bump by hand. `build.sh`
 stamps `CFBundleShortVersionString` from the latest tag (`v1.2.0` → `1.2.0`, or
 `1.2.0-dev` for commits after it) and `CFBundleVersion` from the commit count.
-The running version shows at the bottom of the menu.
+The running version shows in **About ScreenBox**, in the menu.
 
 To cut a release:
 
