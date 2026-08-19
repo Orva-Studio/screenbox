@@ -10,12 +10,23 @@ A tiny macOS menu bar app for drawing highlight boxes on screen while recording 
 
 Press a hotkey, drag a box around whatever you're talking about, and it fades away on its own. No editing pass, no timeline annotations.
 
+- **Six drawing tools** — freehand, arrow, rectangle, ellipse, text, and a
+  translucent highlighter, each one key away.
+- **Marks fade on their own** — draw, keep talking, and the ink clears itself;
+  no undo pass to clean up before the next take.
+- **Spotlight mode** dims the screen to a soft-edged circle that follows the
+  pointer, for pulling attention to one part of a demo without a drawing tool.
+- **Click-through** hands clicks and scrolling straight to the app underneath,
+  so you can keep scrolling the page you're demoing without leaving draw mode.
+- **Global hotkey, no Accessibility permission** — a menu bar icon and
+  **⌃⌥⌘B**, nothing else running in the background.
+
 ## Install
 
 Requires macOS 13 or later. The build is universal, so it runs natively on both
 Apple silicon and Intel.
 
-### Homebrew
+### Homebrew (recommended)
 
 ```bash
 brew install --cask --no-quarantine Orva-Studio/tap/screenbox
