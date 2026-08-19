@@ -69,9 +69,20 @@ final class ToolButton: NSView {
 
 /// Rounded black pill that hosts the controls.
 final class ToolbarBackground: NSView {
+    /// Fades the pill down to a translucent outline while click-through is on,
+    /// so it's obvious clicks aren't landing on the overlay right now — without
+    /// making the bar (which stays clickable) disappear entirely.
+    var dimmed = false { didSet { needsDisplay = true } }
+
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.black.withAlphaComponent(0.92).setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+        NSColor.black.withAlphaComponent(dimmed ? 0.35 : 0.92).setFill()
+        let path = NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10)
+        path.fill()
+        if dimmed {
+            NSColor.white.withAlphaComponent(0.25).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+        }
     }
 
     /// Dragging anywhere on the bar moves the window.
@@ -117,6 +128,7 @@ final class ToolbarPanel: NSPanel {
     private var toolButtons: [(Tool, ToolButton)] = []
     private var spotlightButton: ToolButton?
     private var passThroughButton: ToolButton?
+    private var background: ToolbarBackground?
     /// Whether the last `build()` laid out the clear button, so `syncSelection`
     /// can spot the auto-fade toggle and relay out.
     private var showsClear = false
@@ -219,6 +231,7 @@ final class ToolbarPanel: NSPanel {
         background.autoresizingMask = [.width, .height]
         controls.forEach { background.addSubview($0) }
         contentView = background
+        self.background = background
 
         syncSelection()
     }
@@ -232,6 +245,7 @@ final class ToolbarPanel: NSPanel {
             toolButtons.removeAll()
             spotlightButton = nil
             passThroughButton = nil
+            background = nil
             build() // ends in syncSelection() itself, with showsClear now correct
             return
         }
@@ -244,6 +258,7 @@ final class ToolbarPanel: NSPanel {
         }
         spotlightButton?.isSelected = prefs.spotlight
         passThroughButton?.isSelected = prefs.passThrough
+        background?.dimmed = prefs.passThrough
     }
 
     // MARK: Positioning

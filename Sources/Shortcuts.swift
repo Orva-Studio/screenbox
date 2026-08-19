@@ -18,7 +18,7 @@ enum Shortcuts {
         ("S", "Turn the spotlight on or off"),
         ("X", "Click through"),
         ("B", "Show or hide the toolbar"),
-        ("[  ]", "Thinner or thicker stroke — spotlight size, while it's up"),
+        ("[  ]", "Thinner or thicker stroke — highlighter size, or spotlight size, while active"),
         ("−  =", "Less or more corner radius"),
         ("F", "Fade marks out automatically, on or off"),
         ("⌘Z", "Undo the last mark"),

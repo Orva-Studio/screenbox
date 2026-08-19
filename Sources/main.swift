@@ -127,6 +127,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
             tool: prefs.tool,
             color: prefs.color,
             lineWidth: prefs.lineWidth,
+            highlighterWidth: prefs.highlighterWidth,
             cornerRadius: prefs.cornerRadius,
             points: [point],
             start: point,
@@ -354,11 +355,16 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case kVK_ANSI_X: prefs.passThrough.toggle()
 
         // While the spotlight is up, the brackets size it — that's the thing
-        // you're most likely reaching for.
+        // you're most likely reaching for. Otherwise they size whichever
+        // drawing tool is active.
         case kVK_ANSI_LeftBracket:
-            if prefs.spotlight { prefs.spotlightRadius -= 20 } else { prefs.lineWidth -= 1 }
+            if prefs.spotlight { prefs.spotlightRadius -= 20 }
+            else if prefs.tool == .highlighter { prefs.highlighterWidth -= 4 }
+            else { prefs.lineWidth -= 1 }
         case kVK_ANSI_RightBracket:
-            if prefs.spotlight { prefs.spotlightRadius += 20 } else { prefs.lineWidth += 1 }
+            if prefs.spotlight { prefs.spotlightRadius += 20 }
+            else if prefs.tool == .highlighter { prefs.highlighterWidth += 4 }
+            else { prefs.lineWidth += 1 }
         case kVK_ANSI_Minus:        prefs.cornerRadius -= 4
         case kVK_ANSI_Equal:        prefs.cornerRadius += 4
 
@@ -487,6 +493,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item("\(Int(width)) pt", #selector(pickLineWidth), tag: index)
         }))
 
+        menu.addItem(submenu(title: "Highlighter Size", items: Prefs.highlighterWidthChoices.enumerated().map { index, width in
+            item("\(Int(width)) pt", #selector(pickHighlighterWidth), tag: index)
+        }))
+
         menu.addItem(submenu(title: "Corner Radius", items: Prefs.cornerRadiusChoices.enumerated().map { index, radius in
             item(radius == 0 ? "Square" : "\(Int(radius)) pt", #selector(pickCornerRadius), tag: index)
         }))
@@ -571,6 +581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         check("Colour", matching: prefs.colorIndex)
         check("Thickness", matching: Prefs.lineWidthChoices.firstIndex(of: prefs.lineWidth))
+        check("Highlighter Size", matching: Prefs.highlighterWidthChoices.firstIndex(of: prefs.highlighterWidth))
         check("Corner Radius", matching: Prefs.cornerRadiusChoices.firstIndex(of: prefs.cornerRadius))
         check("Fade Speed", matching: Prefs.speedChoices.firstIndex {
             $0.1 == prefs.holdDuration && $0.2 == prefs.fadeDuration
@@ -603,6 +614,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc private func pickColor(_ sender: NSMenuItem) { prefs.colorIndex = sender.tag }
     @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
+    @objc private func pickHighlighterWidth(_ sender: NSMenuItem) { prefs.highlighterWidth = Prefs.highlighterWidthChoices[sender.tag] }
     @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
     @objc private func toggleFade() { prefs.autoFade.toggle() }
     @objc private func toggleCursor() { prefs.keepNormalCursor.toggle() }
