@@ -93,7 +93,7 @@ While drawing:
 | `S` | toggle the spotlight |
 | `B` | show/hide the toolbar |
 | `X` | click through — let clicks and scrolling reach the app underneath |
-| `[` `]` | thinner / thicker stroke (spotlight size, while it's up) |
+| `[` `]` | thinner / thicker stroke (highlighter size while it's selected, spotlight size while it's up) |
 | `−` `=` | less / more corner radius |
 | `F` | toggle fade-out on/off |
 | `⌘Z` | undo last mark |
@@ -102,8 +102,9 @@ While drawing:
 
 The **highlighter** drags a wide translucent band in the current colour, so
 whatever it covers still reads through — yellow over a line of code or a
-paragraph works the way you'd expect. Its width follows the stroke thickness
-(`[` and `]`), scaled up.
+paragraph works the way you'd expect. Its size is independent of the pen's
+stroke thickness — resize it with `[` and `]` while it's selected, or pick a
+size from **Highlighter Size** in the menu.
 
 The **spotlight** dims the whole screen except a soft-edged circle that follows
 the pointer, for pulling attention to one part of a demo. It's a mode, not a
@@ -120,7 +121,8 @@ clicks and scrolling back to whatever is underneath, so you can scroll the page
 you're demoing without leaving draw mode. Existing marks stay on screen; you
 just can't draw new ones until it's off. The menu bar icon changes while it's
 active, since clicks going straight through is otherwise indistinguishable from
-having exited.
+having exited — and the toolbar itself dims to a translucent outline, since
+that's the thing you're actually looking at.
 
 Because every click passes through, the way back can't be a click on the
 overlay — use the global **⌃⌥⌘X**, the `X` key (while ScreenBox still has

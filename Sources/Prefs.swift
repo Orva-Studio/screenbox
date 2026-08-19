@@ -10,7 +10,7 @@ final class Prefs {
     static let shared = Prefs()
 
     private enum Key: String {
-        case colorIndex, lineWidth, cornerRadius, autoFade, holdDuration, fadeDuration
+        case colorIndex, lineWidth, highlighterWidth, cornerRadius, autoFade, holdDuration, fadeDuration
         case tool, toolbarX, toolbarY, showToolbar
         case keepNormalCursor, spotlight, spotlightRadius
     }
@@ -24,6 +24,7 @@ final class Prefs {
         defaults.register(defaults: [
             Key.colorIndex.rawValue: 3,        // yellow
             Key.lineWidth.rawValue: 4.0,
+            Key.highlighterWidth.rawValue: 24.0, // matches the old lineWidth * 4 + 8 default
             Key.cornerRadius.rawValue: 0.0,
             Key.autoFade.rawValue: true,
             Key.holdDuration.rawValue: 0.15,
@@ -124,6 +125,13 @@ final class Prefs {
         set { write(Key.lineWidth, Double(min(max(newValue, 1), 16))) }
     }
 
+    /// Highlighter stroke width in points. Kept separate from `lineWidth` so
+    /// sizing the highlighter doesn't also resize the pen, and vice versa.
+    var highlighterWidth: CGFloat {
+        get { CGFloat(defaults.double(forKey: Key.highlighterWidth.rawValue)) }
+        set { write(Key.highlighterWidth, Double(min(max(newValue, 8), 60))) }
+    }
+
     /// Corner radius in points. 0 is a sharp rectangle.
     var cornerRadius: CGFloat {
         get { CGFloat(defaults.double(forKey: Key.cornerRadius.rawValue)) }
@@ -152,6 +160,7 @@ final class Prefs {
     // MARK: Presets offered in the menu
 
     static let lineWidthChoices: [CGFloat] = [2, 3, 4, 6, 8, 12]
+    static let highlighterWidthChoices: [CGFloat] = [12, 18, 24, 32, 44]
     static let cornerRadiusChoices: [CGFloat] = [0, 4, 8, 16, 28]
     static let spotlightRadiusChoices: [CGFloat] = [80, 110, 140, 200, 280, 400]
     /// (label, hold, fade)

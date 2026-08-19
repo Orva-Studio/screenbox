@@ -50,6 +50,9 @@ struct Mark {
     var tool: Tool
     var color: NSColor
     var lineWidth: CGFloat
+    /// Highlighter stroke width, set independently of `lineWidth` so the two
+    /// tools can be sized separately. Unused by every other tool.
+    var highlighterWidth: CGFloat = 24
     var cornerRadius: CGFloat
 
     /// Freehand sample points, in view coordinates.
@@ -77,9 +80,6 @@ struct Mark {
         if t >= 1 { return 0 }
         return CGFloat(1 - t * t) // ease-out: lingers, then drops off
     }
-
-    /// Highlighter strokes are much fatter than a pen line.
-    var highlighterWidth: CGFloat { lineWidth * 4 + 8 }
 
     var fontSize: CGFloat { 14 + lineWidth * 4 }
 
