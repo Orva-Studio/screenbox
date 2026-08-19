@@ -10,6 +10,11 @@ A tiny macOS menu bar app for drawing highlight boxes on screen while recording 
 
 Press a hotkey, drag a box around whatever you're talking about, and it fades away on its own. No editing pass, no timeline annotations.
 
+<p align="center">
+  <img src="design/screenshots/annotate.png" width="49%" alt="Drawing arrows and text over a webpage with ScreenBox">
+  <img src="design/screenshots/spotlight.png" width="49%" alt="ScreenBox's spotlight mode dimming everything but one area">
+</p>
+
 - **Six drawing tools** — freehand, arrow, rectangle, ellipse, text, and a
   translucent highlighter, each one key away.
 - **Marks fade on their own** — draw, keep talking, and the ink clears itself;
