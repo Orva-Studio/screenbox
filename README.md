@@ -29,11 +29,12 @@ Apple silicon and Intel.
 ### Homebrew (recommended)
 
 ```bash
-brew install --cask --no-quarantine Orva-Studio/tap/screenbox
+brew install --cask Orva-Studio/tap/screenbox
+xattr -dr com.apple.quarantine /Applications/ScreenBox.app
 ```
 
-`--no-quarantine` does the same job as step 2 below, so with Homebrew you can
-skip straight to launching the app.
+The second line is the same quarantine-clearing step as step 2 below — Homebrew
+can't skip it, since the app is ad-hoc signed, not notarized.
 
 ### Manually
 
