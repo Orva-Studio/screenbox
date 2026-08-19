@@ -15,6 +15,17 @@ Press a hotkey, drag a box around whatever you're talking about, and it fades aw
 Requires macOS 13 or later. The build is universal, so it runs natively on both
 Apple silicon and Intel.
 
+### Homebrew
+
+```bash
+brew install --cask --no-quarantine Orva-Studio/tap/screenbox
+```
+
+`--no-quarantine` does the same job as step 2 below, so with Homebrew you can
+skip straight to launching the app.
+
+### Manually
+
 **1. Install it.** Grab **ScreenBox-x.y.z.dmg** from the
 [latest release](https://github.com/Orva-Studio/screenbox/releases/latest), open
 it, and drag ScreenBox to Applications. (The `.zip` next to it is the same app,
