@@ -59,3 +59,32 @@ jobs:
               --notes-file .github/install-notes.md \
               --generate-notes
           fi
+
+      # Homebrew installs come from Orva-Studio/homebrew-tap, which pins the
+      # version and the zip's checksum. Point it at the release we just made.
+      # TAP_TOKEN is a PAT with contents:write on that repo — github.token is
+      # scoped to this one and can't push there.
+      - name: Update the Homebrew cask
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA=$(shasum -a 256 "$ZIP" | cut -d' ' -f1)
+
+          git clone --depth 1 \
+            "https://x-access-token:$GH_TOKEN@github.com/Orva-Studio/homebrew-tap.git" tap
+          CASK=tap/Casks/screenbox.rb
+
+          # Only the two pinned lines change; the rest of the cask is hand-kept.
+          sed -i '' \
+            -e "s|^  version \".*\"|  version \"$VERSION\"|" \
+            -e "s|^  sha256 \".*\"|  sha256 \"$SHA\"|" \
+            "$CASK"
+
+          cd tap
+          git diff --quiet && { echo "Cask already at $VERSION"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Update ScreenBox to $VERSION"
+          git push -q
