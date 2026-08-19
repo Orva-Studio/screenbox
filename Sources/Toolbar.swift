@@ -75,7 +75,7 @@ final class ToolbarBackground: NSView {
     var dimmed = false { didSet { needsDisplay = true } }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.black.withAlphaComponent(dimmed ? 0.35 : 0.92).setFill()
+        NSColor.black.withAlphaComponent(dimmed ? 0.15 : 0.92).setFill()
         let path = NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10)
         path.fill()
         if dimmed {
