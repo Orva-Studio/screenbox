@@ -35,11 +35,12 @@ Apple silicon and Intel.
 
 ```bash
 brew install --cask Orva-Studio/tap/screenbox
-xattr -dr com.apple.quarantine /Applications/ScreenBox.app
 ```
 
-The second line is the same quarantine-clearing step as step 2 below — Homebrew
-can't skip it, since the app is ad-hoc signed, not notarized.
+Homebrew clears the quarantine flag itself as part of the install, so there's
+no extra step here — that's only needed for the manual DMG path below, since a
+browser download gets quarantined by Gatekeeper in a way `brew` doesn't
+trigger.
 
 ### Manually
 
