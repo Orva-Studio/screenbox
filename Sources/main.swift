@@ -617,6 +617,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
     @objc private func pickHighlighterWidth(_ sender: NSMenuItem) { prefs.highlighterWidth = Prefs.highlighterWidthChoices[sender.tag] }
     @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
+    /// Unlike click-through, this is a plain preference rather than a mode, so
+    /// it's meaningful outside draw mode too — no `isDrawing` guard.
     @objc func toggleFade() { prefs.autoFade.toggle() }
     @objc private func toggleCursor() { prefs.keepNormalCursor.toggle() }
     @objc private func pickSpotlightRadius(_ sender: NSMenuItem) {
@@ -701,17 +703,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             guard let userData else { return noErr }
             let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
 
-            // Which hotkey fired — they all land in this one handler.
+            // Which hotkey fired — they all land in this one handler. On a
+            // read failure `pressed` stays zeroed, which matches no hotkey; do
+            // nothing rather than let it fall through to draw mode.
             var pressed = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject),
-                              EventParamType(typeEventHotKeyID), nil,
-                              MemoryLayout<EventHotKeyID>.size, nil, &pressed)
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                           EventParamType(typeEventHotKeyID), nil,
+                                           MemoryLayout<EventHotKeyID>.size, nil, &pressed)
+            guard status == noErr else { return noErr }
 
             DispatchQueue.main.async {
                 switch pressed.id {
+                case 1: delegate.toggleDrawing()
                 case 2: delegate.togglePassThrough()
                 case 3: delegate.toggleFade()
-                default: delegate.toggleDrawing()
+                default: break
                 }
             }
             return noErr
@@ -720,15 +726,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let signature = OSType(0x5342_4F58) // 'SBOX'
         let modifiers = UInt32(controlKey | optionKey | cmdKey)
 
-        // Registration fails if another app already holds the combination.
-        // Nothing here can recover from that, but a silent no-op key looks like
-        // a bug in ScreenBox, so at least say so.
+        // Registration can fail — most often because the combination is
+        // already spoken for. Nothing here can recover from that, but a silent
+        // no-op key looks like a bug in ScreenBox, so at least say so.
         func register(_ keyCode: Int, id: UInt32, into ref: inout EventHotKeyRef?) {
             let status = RegisterEventHotKey(UInt32(keyCode), modifiers,
                                              EventHotKeyID(signature: signature, id: id),
                                              GetApplicationEventTarget(), 0, &ref)
             if status != noErr {
-                NSLog("ScreenBox: could not register global hotkey \(id) (OSStatus \(status)) — another app may own it")
+                NSLog("ScreenBox: could not register global hotkey \(id) (OSStatus \(status))")
             }
         }
 
