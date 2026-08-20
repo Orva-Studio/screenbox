@@ -88,7 +88,8 @@ To keep a build you made yourself, drag `build/ScreenBox.app` to `/Applications`
 
 ## Use
 
-**⌃⌥⌘B** toggles draw mode on whichever screen the mouse is on.
+**⌃⌥⌘B** toggles draw mode on whichever screen the mouse is on. **⌃⌥⌘F**
+toggles fade-out from anywhere, without entering draw mode first.
 
 While drawing:
 
@@ -102,7 +103,7 @@ While drawing:
 | `X` | click through — let clicks and scrolling reach the app underneath |
 | `[` `]` | thinner / thicker stroke (highlighter size while it's selected, spotlight size while it's up) |
 | `−` `=` | less / more corner radius |
-| `F` | toggle fade-out on/off |
+| `F` | toggle fade-out on/off (**⌃⌥⌘F** from anywhere) |
 | `⌘Z` | undo last mark |
 | `C` | clear all, stay in draw mode |
 | `esc` | clear and exit draw mode |
@@ -144,7 +145,7 @@ so a recording doesn't give away that an annotation tool is running. Turn off
 
 > `⌘Z` only applies to marks still on screen. With fade on (the default) a mark
 > is gone about a third of a second after you release the mouse, so there is
-> usually nothing left to undo. Press `F` to turn fade off first.
+> usually nothing left to undo. Press `F` (or **⌃⌥⌘F**) to turn fade off first.
 
 **Keyboard Shortcuts** in the menu opens the same table as a window, so the
 reference is one click away without leaving the app. **About ScreenBox** shows

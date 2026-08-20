@@ -11,6 +11,7 @@ enum Shortcuts {
         ("", "Anywhere"),
         ("⌃⌥⌘B", "Start or stop draw mode"),
         ("⌃⌥⌘X", "Click through — hand clicks to the app underneath"),
+        ("⌃⌥⌘F", "Fade marks out automatically, on or off"),
 
         ("", "While drawing"),
         ("P A R O T H", "Freehand, arrow, rectangle, ellipse, text, highlighter"),
