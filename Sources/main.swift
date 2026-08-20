@@ -440,6 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var shortcutsWindow: ShortcutsWindow?
     private var hotKeyRef: EventHotKeyRef?
     private var passThroughHotKeyRef: EventHotKeyRef?
+    private var fadeHotKeyRef: EventHotKeyRef?
     private var passThroughWasOn = false
     private var isDrawing = false
 
@@ -519,7 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         cursor.identifier = .init("cursor")
         menu.addItem(cursor)
 
-        let fade = NSMenuItem(title: "Marks Fade Out", action: #selector(toggleFade), keyEquivalent: "")
+        let fade = NSMenuItem(title: "Marks Fade Out  (⌃⌥⌘F)", action: #selector(toggleFade), keyEquivalent: "")
         fade.target = self
         fade.identifier = .init("fade")
         menu.addItem(fade)
@@ -616,7 +617,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc private func pickLineWidth(_ sender: NSMenuItem) { prefs.lineWidth = Prefs.lineWidthChoices[sender.tag] }
     @objc private func pickHighlighterWidth(_ sender: NSMenuItem) { prefs.highlighterWidth = Prefs.highlighterWidthChoices[sender.tag] }
     @objc private func pickCornerRadius(_ sender: NSMenuItem) { prefs.cornerRadius = Prefs.cornerRadiusChoices[sender.tag] }
-    @objc private func toggleFade() { prefs.autoFade.toggle() }
+    @objc func toggleFade() { prefs.autoFade.toggle() }
     @objc private func toggleCursor() { prefs.keepNormalCursor.toggle() }
     @objc private func pickSpotlightRadius(_ sender: NSMenuItem) {
         prefs.spotlightRadius = Prefs.spotlightRadiusChoices[sender.tag]
@@ -700,7 +701,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             guard let userData else { return noErr }
             let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
 
-            // Which hotkey fired — both land in this one handler.
+            // Which hotkey fired — they all land in this one handler.
             var pressed = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject),
                               EventParamType(typeEventHotKeyID), nil,
@@ -709,6 +710,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             DispatchQueue.main.async {
                 switch pressed.id {
                 case 2: delegate.togglePassThrough()
+                case 3: delegate.toggleFade()
                 default: delegate.toggleDrawing()
                 }
             }
@@ -718,16 +720,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let signature = OSType(0x5342_4F58) // 'SBOX'
         let modifiers = UInt32(controlKey | optionKey | cmdKey)
 
-        RegisterEventHotKey(UInt32(kVK_ANSI_B), modifiers,
-                            EventHotKeyID(signature: signature, id: 1),
-                            GetApplicationEventTarget(), 0, &hotKeyRef)
+        // Registration fails if another app already holds the combination.
+        // Nothing here can recover from that, but a silent no-op key looks like
+        // a bug in ScreenBox, so at least say so.
+        func register(_ keyCode: Int, id: UInt32, into ref: inout EventHotKeyRef?) {
+            let status = RegisterEventHotKey(UInt32(keyCode), modifiers,
+                                             EventHotKeyID(signature: signature, id: id),
+                                             GetApplicationEventTarget(), 0, &ref)
+            if status != noErr {
+                NSLog("ScreenBox: could not register global hotkey \(id) (OSStatus \(status)) — another app may own it")
+            }
+        }
+
+        register(kVK_ANSI_B, id: 1, into: &hotKeyRef)
 
         // Pass-through hands every click to the app underneath, including the
         // ones that would turn it off again — so it needs a way out that works
         // when ScreenBox isn't the active app.
-        RegisterEventHotKey(UInt32(kVK_ANSI_X), modifiers,
-                            EventHotKeyID(signature: signature, id: 2),
-                            GetApplicationEventTarget(), 0, &passThroughHotKeyRef)
+        register(kVK_ANSI_X, id: 2, into: &passThroughHotKeyRef)
+
+        // Fade is a plain preference rather than a mode, so unlike the other
+        // two it's worth toggling without entering draw mode first — set it up
+        // before a demo, from whatever app you happen to be in.
+        register(kVK_ANSI_F, id: 3, into: &fadeHotKeyRef)
     }
 
     // MARK: Drawing mode
