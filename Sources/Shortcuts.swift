@@ -15,6 +15,7 @@ enum Shortcuts {
 
         ("", "While drawing"),
         ("P A R O T H", "Freehand, arrow, rectangle, ellipse, text, highlighter"),
+        ("D", "Redact — an opaque block that never fades, until you clear it"),
         ("1 – 5", "Blue, red, green, yellow, purple"),
         ("S", "Turn the spotlight on or off"),
         ("X", "Click through"),

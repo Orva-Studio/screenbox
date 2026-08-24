@@ -189,10 +189,10 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         // invisible but still absorb an undo.
         guard mark.isDrawable else { return }
 
-        mark.finishedAt = prefs.autoFade ? Date() : nil
+        mark.finishedAt = prefs.autoFade && !mark.tool.isPermanent ? Date() : nil
         marks.append(mark)
         undoStack.append(mark.id)
-        if prefs.autoFade { startFadeTimerIfNeeded() }
+        if mark.finishedAt != nil { startFadeTimerIfNeeded() }
     }
 
     override func resetCursorRects() {
@@ -349,6 +349,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         case kVK_ANSI_O: prefs.tool = .ellipse
         case kVK_ANSI_T: prefs.tool = .text
         case kVK_ANSI_H: prefs.tool = .highlighter
+        case kVK_ANSI_D: prefs.tool = .redact
 
         case kVK_ANSI_S: prefs.spotlight.toggle()
         case kVK_ANSI_B: prefs.showToolbar.toggle()
@@ -399,7 +400,9 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     /// otherwise turning fade on strands them permanently.
     private func applyAutoFade() {
         let finishedAt = prefs.autoFade ? Date() : nil
-        for index in marks.indices { marks[index].finishedAt = finishedAt }
+        for index in marks.indices where !marks[index].tool.isPermanent {
+            marks[index].finishedAt = finishedAt
+        }
 
         if prefs.autoFade {
             startFadeTimerIfNeeded()
