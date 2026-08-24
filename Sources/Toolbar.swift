@@ -124,8 +124,10 @@ final class ToolbarPanel: NSPanel {
     private var passThroughButton: ToolButton?
     private var background: ToolbarBackground?
     /// Whether the last `build()` laid out the clear button, so `syncSelection`
-    /// can spot the auto-fade toggle and relay out.
+    /// can spot the condition changing and relay out.
     private var showsClear = false
+    /// Set by the overlay: true while a mark that never fades is on screen.
+    var hasPermanentMarks = false { didSet { syncSelection() } }
     private let prefs = Prefs.shared
 
     var onClose: (() -> Void)?
@@ -204,10 +206,7 @@ final class ToolbarPanel: NSPanel {
         passThroughButton = passThrough
         place(passThrough, width: 30)
 
-        // Only worth a slot when marks actually stick around. With auto-fade on
-        // — the default — the screen empties itself, so there is never anything
-        // to clear and the button is dead weight. `C` still works either way.
-        showsClear = !prefs.autoFade
+        showsClear = shouldShowClear
         if showsClear {
             let clear = ToolButton(symbolName: "trash", tooltip: "Clear all  (C)")
             clear.onClick = { [weak self] in self?.onClear?() }
@@ -230,11 +229,17 @@ final class ToolbarPanel: NSPanel {
         syncSelection()
     }
 
+    /// Only worth a slot when something is actually sitting there to clear.
+    /// With auto-fade on — the default — the screen empties itself, so the
+    /// button is dead weight; a redaction never fades, so it earns the slot
+    /// back. `C` works either way.
+    private var shouldShowClear: Bool { !prefs.autoFade || hasPermanentMarks }
+
     /// Reflects the current preferences in the button states.
     func syncSelection() {
-        // Toggling auto-fade adds or removes the clear button, which changes the
-        // bar's width — that needs a fresh layout, not just new button states.
-        if showsClear == prefs.autoFade {
+        // Gaining or losing the clear button changes the bar's width — that
+        // needs a fresh layout, not just new button states.
+        if showsClear != shouldShowClear {
             dots.removeAll()
             toolButtons.removeAll()
             spotlightButton = nil
