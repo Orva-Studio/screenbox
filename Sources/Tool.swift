@@ -190,12 +190,13 @@ struct Mark {
             }
 
         case .rectangle, .redact:
-            // The redaction covers exactly what was dragged: insetting it for a
-            // stroke would let the edges of whatever it hides peek out.
+            // A redaction covers exactly what was dragged: it takes no stroke
+            // inset, and no corner radius either. Both would leave slivers of
+            // whatever it's hiding showing at the edges — square is the point.
             let inset = tool == .redact ? 0 : lineWidth / 2
             let box = rect.insetBy(dx: inset, dy: inset)
             guard box.width > 1, box.height > 1 else { return nil }
-            let radius = min(cornerRadius, min(box.width, box.height) / 2)
+            let radius = tool == .redact ? 0 : min(cornerRadius, min(box.width, box.height) / 2)
             if radius > 0 {
                 path.appendRoundedRect(box, xRadius: radius, yRadius: radius)
             } else {

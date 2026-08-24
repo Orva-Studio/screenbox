@@ -20,6 +20,12 @@ final class OverlayView: NSView, NSTextFieldDelegate {
     private let prefs = Prefs.shared
 
     var onDismiss: (() -> Void)?
+    /// Fires when a mark that never fades appears or goes away, so the toolbar
+    /// can offer Clear exactly while there is something stuck on screen.
+    var onPermanentMarksChanged: ((Bool) -> Void)?
+    /// Last value handed to `onPermanentMarksChanged`, so an unchanged answer
+    /// doesn't relay the bar out on every stroke.
+    private var hadPermanentMarks = false
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -193,6 +199,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         marks.append(mark)
         undoStack.append(mark.id)
         if mark.finishedAt != nil { startFadeTimerIfNeeded() }
+        syncPermanentMarks()
     }
 
     override func resetCursorRects() {
@@ -210,6 +217,7 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         while let id = undoStack.popLast() {
             guard let index = marks.firstIndex(where: { $0.id == id }) else { continue }
             marks.remove(at: index)
+            syncPermanentMarks()
             needsDisplay = true
             return
         }
@@ -412,12 +420,24 @@ final class OverlayView: NSView, NSTextFieldDelegate {
         }
     }
 
+    /// True while a mark that never fades is on screen.
+    var hasPermanentMarks: Bool { marks.contains { $0.tool.isPermanent } }
+
+    /// Reports whether a never-fading mark is on screen, when that changes.
+    private func syncPermanentMarks() {
+        let has = hasPermanentMarks
+        guard has != hadPermanentMarks else { return }
+        hadPermanentMarks = has
+        onPermanentMarksChanged?(has)
+    }
+
     func clear() {
         fadeTimer?.invalidate()
         fadeTimer = nil
         marks.removeAll()
         inProgress = nil
         undoStack.removeAll()
+        syncPermanentMarks()
         textField?.delegate = nil
         textField?.removeFromSuperview()
         textField = nil
@@ -817,6 +837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         let view = OverlayView(frame: NSRect(origin: .zero, size: frame.size))
         view.onDismiss = { [weak self] in self?.endDrawing() }
+        view.onPermanentMarksChanged = { [weak self] has in self?.toolbar?.hasPermanentMarks = has }
         window.contentView = view
 
         self.window = window
@@ -839,6 +860,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let panel = toolbar ?? ToolbarPanel()
         panel.onClose = { [weak self] in self?.endDrawing() }
         panel.onClear = { [weak self] in self?.overlay?.clear() }
+        panel.hasPermanentMarks = overlay?.hasPermanentMarks ?? false
         panel.position(on: target)
         panel.orderFront(nil)
         panel.syncSelection()
