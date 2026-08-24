@@ -15,8 +15,8 @@ Press a hotkey, drag a box around whatever you're talking about, and it fades aw
   <img src="design/screenshots/spotlight.png" width="49%" alt="ScreenBox's spotlight mode dimming everything but one area">
 </p>
 
-- **Six drawing tools** — freehand, arrow, rectangle, ellipse, text, and a
-  translucent highlighter, each one key away.
+- **Seven drawing tools** — freehand, arrow, rectangle, ellipse, text, a
+  translucent highlighter, and a redaction block, each one key away.
 - **Marks fade on their own** — draw, keep talking, and the ink clears itself;
   no undo pass to clean up before the next take.
 - **Spotlight mode** dims the screen to a soft-edged circle that follows the
@@ -97,6 +97,7 @@ While drawing:
 | --- | --- |
 | drag | draw with the current tool |
 | `P` `A` `R` `O` `T` `H` | freehand / arrow / rectangle / ellipse / text / highlighter |
+| `D` | redact — drag an opaque block over something the audience shouldn't see |
 | `1`–`5` | blue / red / green / yellow / purple |
 | `S` | toggle the spotlight |
 | `B` | show/hide the toolbar |
@@ -113,6 +114,18 @@ whatever it covers still reads through — yellow over a line of code or a
 paragraph works the way you'd expect. Its size is independent of the pen's
 stroke thickness — resize it with `[` and `]` while it's selected, or pick a
 size from **Highlighter Size** in the menu.
+
+**Redact** (`D`) drags an opaque black block over whatever it covers — an API
+key in a terminal, an email address in a settings pane, a customer name in a
+dashboard. Unlike every other mark it never fades, however fade is configured:
+it stays until you clear it with `C`, or leave draw mode with `esc`. It's a
+cover, not a filter, so it hides the region completely rather than blurring it.
+
+Two things to know. The block is anchored to the screen, not to the content
+underneath — scroll the window and the secret moves out from behind it. And it
+only helps when your audience is seeing the *display*: if you're sharing a
+single window rather than a whole screen, the overlay isn't in that capture at
+all, so the block is invisible to them while looking correct to you.
 
 The **spotlight** dims the whole screen except a soft-edged circle that follows
 the pointer, for pulling attention to one part of a demo. It's a mode, not a

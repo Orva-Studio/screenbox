@@ -2,7 +2,7 @@ import Cocoa
 
 /// The drawing tools offered in the toolbar.
 enum Tool: Int, CaseIterable {
-    case freehand, arrow, rectangle, ellipse, text, highlighter
+    case freehand, arrow, rectangle, ellipse, text, highlighter, redact
 
     var symbolName: String {
         switch self {
@@ -12,6 +12,7 @@ enum Tool: Int, CaseIterable {
         case .ellipse:     return "circle"
         case .text:        return "textformat"
         case .highlighter: return "highlighter"
+        case .redact:      return "rectangle.fill"
         }
     }
 
@@ -23,6 +24,7 @@ enum Tool: Int, CaseIterable {
         case .ellipse:     return "Ellipse"
         case .text:        return "Text"
         case .highlighter: return "Highlighter"
+        case .redact:      return "Redact"
         }
     }
 
@@ -35,11 +37,17 @@ enum Tool: Int, CaseIterable {
         case .ellipse:     return "O"
         case .text:        return "T"
         case .highlighter: return "H"
+        case .redact:      return "D"
         }
     }
 
     /// Tools drawn by sampling the cursor along a drag.
     var isFreehandStyle: Bool { self == .freehand || self == .highlighter }
+
+    /// Tools whose whole point is to stay put. Redactions cover something the
+    /// audience mustn't see, so they never join the fade — `C` or `esc` clears
+    /// them, deliberately, rather than a timer doing it while you're talking.
+    var isPermanent: Bool { self == .redact }
 }
 
 /// One finished (or in-progress) mark on screen.
@@ -119,6 +127,18 @@ struct Mark {
             ]
             text.draw(at: start, withAttributes: attributes)
 
+        case .redact:
+            guard let path = bezierPath() else { return }
+            // Deliberately opaque, and deliberately not the palette colour: a
+            // redaction has to actually hide what's under it, and it should
+            // read as a blanked-out box rather than as a filled-in shape.
+            path.lineJoinStyle = .round
+            NSColor.black.setFill()
+            path.fill()
+            NSColor.white.withAlphaComponent(0.3).setStroke()
+            path.lineWidth = 1
+            path.stroke()
+
         case .highlighter:
             guard let path = bezierPath() else { return }
             // One translucent pass, no halo: the point is to let whatever is
@@ -169,8 +189,11 @@ struct Mark {
                 path.line(to: NSPoint(x: end.x + cos(side) * head, y: end.y + sin(side) * head))
             }
 
-        case .rectangle:
-            let box = rect.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+        case .rectangle, .redact:
+            // The redaction covers exactly what was dragged: insetting it for a
+            // stroke would let the edges of whatever it hides peek out.
+            let inset = tool == .redact ? 0 : lineWidth / 2
+            let box = rect.insetBy(dx: inset, dy: inset)
             guard box.width > 1, box.height > 1 else { return nil }
             let radius = min(cornerRadius, min(box.width, box.height) / 2)
             if radius > 0 {
