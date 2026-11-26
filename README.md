@@ -45,8 +45,9 @@ brew install --cask Orva-Studio/tap/screenbox
 it, and drag ScreenBox to Applications. (The `.zip` next to it is the same app,
 for scripted installs.)
 
-ScreenBox is signed with Orva Studio's Developer ID and notarized by Apple, so it
-opens straight from the download, with no warning to get past.
+ScreenBox is signed with Orva Studio's Developer ID and notarized by Apple: macOS
+asks once whether to open an app from the internet, and there's no security
+setting to override or quarantine flag to clear.
 
 **2. Launch it.** Double-click ScreenBox in Applications. Nothing appears in the
 Dock and no window opens — ScreenBox runs as a menu bar app, so the only sign
