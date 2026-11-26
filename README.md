@@ -37,10 +37,6 @@ Apple silicon and Intel.
 brew install --cask Orva-Studio/tap/screenbox
 ```
 
-Homebrew clears the quarantine flag itself as part of the install, so there's
-no extra step here — that's only needed for the manual DMG path below, since a
-browser download gets quarantined by Gatekeeper in a way `brew` doesn't
-trigger.
 
 ### Manually
 
@@ -49,20 +45,10 @@ trigger.
 it, and drag ScreenBox to Applications. (The `.zip` next to it is the same app,
 for scripted installs.)
 
-**2. Clear the quarantine flag.** This is the command you have to run after
-installing from the DMG:
+ScreenBox is signed with Orva Studio's Developer ID and notarized by Apple, so it
+opens straight from the download, with no warning to get past.
 
-```bash
-xattr -dr com.apple.quarantine /Applications/ScreenBox.app
-```
-
-Without it macOS refuses to open the app — it's only ad-hoc signed, there's no
-Apple Developer account behind it, so anything downloaded gets quarantined. You
-only do this once. (If you'd rather not use the terminal: right-click the app and
-choose **Open**, then confirm — on Ventura and later you may need **System
-Settings → Privacy & Security → Open Anyway** instead.)
-
-**3. Launch it.** Double-click ScreenBox in Applications. Nothing appears in the
+**2. Launch it.** Double-click ScreenBox in Applications. Nothing appears in the
 Dock and no window opens — ScreenBox runs as a menu bar app, so the only sign
 it's running is the box icon up in the menu bar. (It won't show up in ⌘-Tab
 either.) Then press **⌃⌥⌘B** to draw.
@@ -83,8 +69,9 @@ open build/ScreenBox.app
 
 Requires the Swift toolchain (Xcode or Command Line Tools). No dependencies.
 
-To keep a build you made yourself, drag `build/ScreenBox.app` to `/Applications`
-— a local build isn't quarantined, so it opens without the step above.
+To keep a build you made yourself, drag `build/ScreenBox.app` to `/Applications`.
+Local builds are signed ad hoc; set `SIGN_IDENTITY` to a Developer ID to sign
+one as a release is.
 
 ## Use
 
@@ -214,11 +201,13 @@ To build a disk image by hand:
 ./scripts/make-dmg.sh          # -> build/ScreenBox-<version>.dmg
 ```
 
-The app is only **ad-hoc signed**, so Gatekeeper quarantines it on download and
-the release notes tell people to right-click → Open (or run `xattr -dr
-com.apple.quarantine`). Fixing that properly needs an Apple Developer account:
-sign with a Developer ID certificate, then `xcrun notarytool submit --wait` and
-`xcrun stapler staple` in the workflow.
+Releases are signed with Orva Studio's Developer ID (hardened runtime, secure
+timestamp) and notarized: the workflow imports the certificate from the
+`DEVELOPER_ID_P12` and `DEVELOPER_ID_PASSWORD` secrets, `build.sh` signs with it,
+and `scripts/notarize.sh` sends the app, then the DMG, to Apple with the App Store
+Connect API key (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) and
+staples the tickets. Without those secrets a build is signed ad hoc, as local
+builds are.
 
 ## Notes
 

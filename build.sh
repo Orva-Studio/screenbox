@@ -78,6 +78,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP"
+# With SIGN_IDENTITY (CI sets it from the Developer ID secrets), signed for
+# notarizing: the hardened runtime and a secure timestamp, both of which Apple
+# requires. Without it, ad hoc, as local builds always were.
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+else
+  codesign --force --sign - "$APP"
+fi
 
 echo "Built $APP ($VERSION, build $BUILD)"

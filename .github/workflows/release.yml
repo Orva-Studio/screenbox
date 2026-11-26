@@ -18,8 +18,42 @@ jobs:
         with:
           fetch-depth: 0 # build.sh reads tags and the commit count
 
+      # The Developer ID certificate into a keychain of this run's own, its name
+      # for build.sh to sign with. Without the secrets the app is signed ad hoc
+      # and nothing is notarized, as before.
+      - name: Developer ID
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then echo "no Developer ID secrets: signing ad hoc"; exit 0; fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          PASS=$(openssl rand -hex 16)
+          security create-keychain -p "$PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASS" "$KEYCHAIN"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASS" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          ID=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')
+          if [ -z "$ID" ]; then echo "the certificate has no Developer ID Application identity" >&2; exit 1; fi
+          echo "SIGN_IDENTITY=$ID" >> "$GITHUB_ENV"
+
       - name: Build
         run: ./build.sh
+
+      # Apple checks the signed app and its ticket is stapled to it, so the zip
+      # and the DMG made from it below both carry an app that opens without a
+      # warning.
+      - name: Notarize the app
+        if: env.SIGN_IDENTITY != ''
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: ./scripts/notarize.sh build/ScreenBox.app
 
       # Two assets: a DMG for people who just want to drag it to Applications,
       # and a zip for scripted installs. `ditto` rather than `zip` for the
@@ -34,6 +68,28 @@ jobs:
           echo "DMG=ScreenBox-$VERSION.dmg" >> "$GITHUB_ENV"
           echo "ZIP=ScreenBox-$VERSION.zip" >> "$GITHUB_ENV"
 
+      # The DMG itself, signed and notarized too, so opening it never warns.
+      - name: Notarize the DMG
+        if: env.SIGN_IDENTITY != ''
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          codesign --force --timestamp --sign "$SIGN_IDENTITY" "$DMG"
+          ./scripts/notarize.sh "$DMG"
+
+      - name: Check Gatekeeper accepts them
+        if: env.SIGN_IDENTITY != ''
+        run: |
+          spctl -a -vv -t exec build/ScreenBox.app
+          spctl -a -vv -t open --context context:primary-signature "$DMG"
+          mkdir -p check && ditto -x -k "$ZIP" check && spctl -a -vv -t exec check/ScreenBox.app
+
+      - name: Remove the signing keychain
+        if: always() && env.SIGN_IDENTITY != ''
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -42,8 +98,8 @@ jobs:
             ${{ env.DMG }}
             ${{ env.ZIP }}
 
-      # The app is only ad-hoc signed, so Gatekeeper quarantines it on download.
-      # The release notes have to say how to get past that.
+      # Signed with Orva Studio's Developer ID and notarized: it opens straight
+      # from the download.
       - name: Publish release
         if: github.ref_type == 'tag'
         env:
